@@ -1,0 +1,26 @@
+kind = "web"
+previewPath = "/archiveiq/"
+title = "ArchiveIQ"
+version = "1.0.0"
+id = "artifacts/archiveiq"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/archiveiq/" ]
+localPort = 21097
+
+[services.development]
+run = "pnpm --filter @workspace/archiveiq run dev"
+
+[services.production]
+run = "node --enable-source-maps artifacts/archiveiq/dist/index.mjs"
+build = [ "pnpm", "--filter", "@workspace/archiveiq", "run", "build" ]
+
+[services.env]
+PORT = "21097"
+BASE_PATH = "/archiveiq"

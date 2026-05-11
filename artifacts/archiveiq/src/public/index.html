@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ArchiveIQ — Universal Archival Intelligence</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect x='8' y='20' width='48' height='36' rx='3' fill='%23C9A84C'/><rect x='4' y='14' width='56' height='12' rx='3' fill='%23A07830'/><rect x='20' y='32' width='24' height='4' rx='2' fill='%23FAF7F0'/><rect x='20' y='40' width='16' height='4' rx='2' fill='%23FAF7F0'/></svg>" />
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#FAF7F0;color:#3D2B1F;min-height:100vh}
+h1,h2,h3,h4{font-family:Georgia,serif;color:#3D2B1F}
+a{color:#C9A84C;text-decoration:none}
+
+/* Header */
+#header{background:#3D2B1F;color:#FAF7F0;padding:16px 24px;display:flex;align-items:center;justify-content:space-between}
+#header h1{font-size:1.6rem;color:#C9A84C;font-family:Georgia,serif;letter-spacing:0.04em}
+#header .subtitle{font-size:0.82rem;color:#D4B896;margin-top:2px}
+.api-badge{font-size:0.78rem;padding:4px 12px;border-radius:20px;font-weight:600;background:#2A5C2A;color:#88DD88;border:1px solid #44AA44}
+.api-badge.inactive{background:#5C2A2A;color:#DD8888;border-color:#AA4444}
+
+/* Status Bar */
+#status-bar{background:#2D1F15;color:#D4B896;padding:8px 24px;display:flex;gap:20px;font-size:0.82rem;flex-wrap:wrap;align-items:center}
+.stat-chip{background:rgba(201,168,76,0.15);border:1px solid rgba(201,168,76,0.3);padding:3px 10px;border-radius:12px;color:#C9A84C;font-weight:600}
+
+/* Tabs */
+#tab-nav{background:#F0E8D8;border-bottom:2px solid #D4B896;display:flex;overflow-x:auto}
+.tab-btn{padding:12px 20px;border:none;background:none;cursor:pointer;font-size:0.88rem;font-weight:600;color:#6B4E35;white-space:nowrap;border-bottom:3px solid transparent;transition:all 0.2s}
+.tab-btn:hover{background:#E8DBC8;color:#3D2B1F}
+.tab-btn.active{color:#3D2B1F;border-bottom-color:#C9A84C;background:#FAF7F0}
+.tab-btn .tab-num{font-size:0.72rem;color:#A07830;margin-right:4px}
+
+/* Tab Content */
+#tabs-content{max-width:1200px;margin:0 auto;padding:24px}
+.tab-pane{display:none}
+.tab-pane.active{display:block}
+
+/* Cards */
+.card{background:#fff;border:1px solid #D4B896;border-radius:8px;padding:20px;margin-bottom:16px}
+.card-title{font-family:Georgia,serif;font-size:1.05rem;color:#3D2B1F;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #E8DBC8}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;border:none;cursor:pointer;font-size:0.88rem;font-weight:600;transition:all 0.15s}
+.btn-primary{background:#C9A84C;color:#3D2B1F}
+.btn-primary:hover{background:#B8962A}
+.btn-secondary{background:#E8DBC8;color:#3D2B1F;border:1px solid #D4B896}
+.btn-secondary:hover{background:#D4C4A8}
+.btn-danger{background:#8B2A2A;color:#FAF7F0}
+.btn-danger:hover{background:#6B1A1A}
+.btn-sm{padding:4px 10px;font-size:0.78rem}
+.btn:disabled{opacity:0.5;cursor:not-allowed}
+.btn-green{background:#2A5C2A;color:#EEF7EE}
+.btn-green:hover{background:#1A4C1A}
+
+/* Forms */
+label{display:block;font-size:0.82rem;font-weight:600;margin-bottom:4px;color:#5A3E2B}
+input[type=text],input[type=date],select,textarea{width:100%;padding:8px 12px;border:1px solid #D4B896;border-radius:6px;background:#fff;color:#3D2B1F;font-family:system-ui,sans-serif;font-size:0.88rem}
+textarea{resize:vertical;line-height:1.5}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#C9A84C;box-shadow:0 0 0 2px rgba(201,168,76,0.2)}
+.form-row{display:grid;gap:12px}
+.form-row-2{grid-template-columns:1fr 1fr}
+.form-row-3{grid-template-columns:1fr 1fr 1fr}
+.form-group{margin-bottom:12px}
+
+/* Project Cards */
+.project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:16px}
+.project-card{background:#fff;border:1px solid #D4B896;border-radius:8px;padding:16px;transition:all 0.2s}
+.project-card.active-project{border-color:#C9A84C;background:#FFFBF0;box-shadow:0 2px 8px rgba(201,168,76,0.2)}
+.project-card h3{font-family:Georgia,serif;font-size:1rem;color:#3D2B1F;margin-bottom:4px}
+.project-type-badge{font-size:0.72rem;background:#F0E8D8;color:#6B4E35;padding:2px 8px;border-radius:10px;display:inline-block;margin-bottom:8px}
+.project-stats{display:flex;gap:12px;font-size:0.78rem;color:#6B4E35;margin:8px 0}
+.project-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.active-pill{background:#C9A84C;color:#3D2B1F;font-size:0.7rem;font-weight:700;padding:2px 8px;border-radius:10px}
+
+/* Upload Zone */
+#drop-zone{border:2px dashed #D4B896;border-radius:8px;padding:40px;text-align:center;cursor:pointer;background:#F8F4EC;transition:all 0.2s;margin-bottom:16px}
+#drop-zone:hover,#drop-zone.dragover{border-color:#C9A84C;background:#FFF9E6}
+#drop-zone p{color:#6B4E35;margin-top:8px;font-size:0.88rem}
+.thumb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin:12px 0}
+.thumb-item{background:#F0E8D8;border:1px solid #D4B896;border-radius:6px;padding:8px;text-align:center;font-size:0.75rem;position:relative}
+.thumb-item .status-badge{font-size:0.65rem;padding:2px 6px;border-radius:10px;margin-top:4px;display:inline-block}
+.status-queued{background:#E8DBC8;color:#6B4E35}
+.status-processing{background:#FFF3CD;color:#856404}
+.status-done{background:#D4EDDA;color:#155724}
+.status-error{background:#F8D7DA;color:#721C24}
+.status-review{background:#CCE5FF;color:#004085}
+
+/* Progress */
+.progress-wrap{background:#E8DBC8;border-radius:10px;height:10px;margin:8px 0;overflow:hidden}
+.progress-bar{background:#C9A84C;height:100%;border-radius:10px;transition:width 0.3s}
+
+/* Table */
+.data-table{width:100%;border-collapse:collapse;font-size:0.83rem}
+.data-table th{background:#3D2B1F;color:#FAF7F0;padding:8px 10px;text-align:left;font-weight:600}
+.data-table td{padding:8px 10px;border-bottom:1px solid #E8DBC8;vertical-align:top}
+.data-table tr:hover td{background:#FFF9E6}
+.data-table .voice-row td{font-style:italic;background:#FFF8E1}
+.data-table .noteworthy-row td{background:#FFF3CD}
+
+/* Intel Cards */
+.intel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin:12px 0}
+.intel-card{background:#fff;border:1px solid #D4B896;border-radius:8px;padding:14px;text-align:center}
+.intel-card .big-num{font-size:2rem;font-weight:700;color:#C9A84C;font-family:Georgia,serif}
+.intel-card .label{font-size:0.78rem;color:#6B4E35;margin-top:2px}
+.bar-chart{margin-top:8px}
+.bar-row{display:flex;align-items:center;gap:8px;margin:4px 0;font-size:0.78rem}
+.bar-fill{height:16px;background:#C9A84C;border-radius:3px;min-width:4px;transition:width 0.5s}
+.bar-label{color:#3D2B1F;min-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-count{color:#6B4E35;font-weight:600}
+
+/* Analysis Result */
+.analysis-card{background:#fff;border:1px solid #D4B896;border-radius:8px;padding:16px;margin:10px 0}
+.analysis-card h4{font-family:Georgia,serif;color:#3D2B1F;margin-bottom:6px}
+.analysis-meta{font-size:0.78rem;color:#6B4E35;margin-bottom:10px}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(61,43,31,0.6);z-index:100;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#FAF7F0;border:1px solid #D4B896;border-radius:10px;padding:24px;max-width:580px;width:90%;max-height:90vh;overflow-y:auto}
+.modal-title{font-family:Georgia,serif;font-size:1.2rem;margin-bottom:16px;padding-bottom:8px;border-bottom:2px solid #C9A84C}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid #E8DBC8}
+
+/* Alert / messages */
+.alert{padding:10px 14px;border-radius:6px;font-size:0.85rem;margin:8px 0}
+.alert-warn{background:#FFF3CD;color:#856404;border:1px solid #FFEEBA}
+.alert-success{background:#D4EDDA;color:#155724;border:1px solid #C3E6CB}
+.alert-error{background:#F8D7DA;color:#721C24;border:1px solid #F5C6CB}
+.alert-info{background:#CCE5FF;color:#004085;border:1px solid #B8DAFF}
+
+/* Ask ArchiveIQ */
+.ask-result{background:#FFFBF0;border-left:4px solid #C9A84C;padding:14px 16px;border-radius:0 6px 6px 0;margin-top:12px;white-space:pre-wrap;font-size:0.9rem;line-height:1.6}
+
+/* Timeline */
+.timeline{position:relative;padding-left:24px}
+.timeline::before{content:"";position:absolute;left:8px;top:0;bottom:0;width:2px;background:#D4B896}
+.timeline-event{position:relative;margin-bottom:12px;padding:10px 14px;background:#fff;border:1px solid #D4B896;border-radius:6px;font-size:0.83rem}
+.timeline-event::before{content:"";position:absolute;left:-20px;top:14px;width:10px;height:10px;border-radius:50%;background:#C9A84C;border:2px solid #FAF7F0}
+.timeline-event .t-date{font-weight:700;color:#A07830;font-size:0.78rem}
+.timeline-event .t-fact{color:#3D2B1F;margin-top:3px}
+
+/* Version history */
+.version-list{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto}
+.version-item{background:#F0E8D8;border:1px solid #D4B896;border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;font-size:0.82rem}
+
+/* Export table */
+.export-section{margin-bottom:24px}
+.export-section h3{font-family:Georgia,serif;font-size:0.95rem;margin-bottom:10px;color:#3D2B1F;border-bottom:1px solid #E8DBC8;padding-bottom:6px}
+
+@media(max-width:768px){
+  .form-row-2,.form-row-3{grid-template-columns:1fr}
+  .project-grid{grid-template-columns:1fr}
+  #tab-nav{padding:0}
+  .tab-btn{padding:10px 12px;font-size:0.78rem}
+  #tabs-content{padding:12px}
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="header">
+  <div>
+    <h1>ArchiveIQ</h1>
+    <div class="subtitle">Universal Archival Intelligence</div>
+  </div>
+  <div id="api-badge" class="api-badge inactive">API: Checking...</div>
+</div>
+
+<!-- Status Bar -->
+<div id="status-bar">
+  <span>🗂 <span class="stat-chip" id="stat-project">No Project</span></span>
+  <span>📄 Items: <strong id="stat-items">0</strong></span>
+  <span>📋 Rows: <strong id="stat-rows">0</strong></span>
+  <span>🔍 Patterns: <strong id="stat-patterns">0</strong></span>
+</div>
+
+<!-- Tab Navigation -->
+<div id="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('projects',this)"><span class="tab-num">1.</span> Projects</button>
+  <button class="tab-btn" onclick="switchTab('setup',this)"><span class="tab-num">2.</span> Setup</button>
+  <button class="tab-btn" onclick="switchTab('process',this)"><span class="tab-num">3.</span> Process</button>
+  <button class="tab-btn" onclick="switchTab('analyze',this)"><span class="tab-num">4.</span> Analyze</button>
+  <button class="tab-btn" onclick="switchTab('intelligence',this)"><span class="tab-num">5.</span> Intelligence</button>
+  <button class="tab-btn" onclick="switchTab('export',this)"><span class="tab-num">6.</span> Export</button>
+</div>
+
+<!-- Tab Content -->
+<div id="tabs-content">
+
+<!-- TAB 1: PROJECTS -->
+<div id="tab-projects" class="tab-pane active">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <h2>Projects</h2>
+    <button class="btn btn-primary" onclick="openNewProjectModal()">+ New Project</button>
+  </div>
+  <div id="project-list" class="project-grid"></div>
+</div>
+
+<!-- TAB 2: SETUP -->
+<div id="tab-setup" class="tab-pane">
+  <h2 style="margin-bottom:16px">Setup — <span id="setup-project-name" style="color:#C9A84C">No Active Project</span></h2>
+  <div id="no-active-warn" class="alert alert-warn" style="display:none">No active project selected. Go to Projects tab and set one active.</div>
+
+  <!-- 2A: Protocol -->
+  <div class="card">
+    <div class="card-title">2A. Processing Protocol</div>
+    <div class="form-group" style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px">
+      <div style="flex:1">
+        <label>Load Template</label>
+        <select id="template-select"><option value="">— Select Template —</option></select>
+      </div>
+      <button class="btn btn-secondary" onclick="loadTemplate()">Load</button>
+    </div>
+    <label>Protocol (up to 15,000 characters)</label>
+    <textarea id="protocol-text" rows="12" maxlength="15000" placeholder="Paste your processing protocol here..."></textarea>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+      <button class="btn btn-primary" onclick="saveProtocol()">Save Protocol</button>
+      <button class="btn btn-secondary btn-sm" onclick="showProtocolHistory()">View History</button>
+      <span id="protocol-saved-at" style="font-size:0.78rem;color:#6B4E35"></span>
+    </div>
+    <div id="protocol-history" style="display:none;margin-top:12px">
+      <div class="card-title" style="font-size:0.88rem">Protocol Versions</div>
+      <div id="protocol-version-list" class="version-list"></div>
+    </div>
+  </div>
+
+  <!-- 2B: Item Schema -->
+  <div class="card">
+    <div class="card-title">2B. Item Schema (Layer 1)</div>
+    <label>JSON Schema — each processed item will use this structure</label>
+    <textarea id="item-schema-text" rows="16" placeholder="JSON schema..."></textarea>
+    <div style="margin-top:10px">
+      <button class="btn btn-primary" onclick="saveSchemas()">Save Schema</button>
+      <span id="schema-saved-at" style="font-size:0.78rem;color:#6B4E35;margin-left:12px"></span>
+    </div>
+  </div>
+
+  <!-- 2C: Analysis Schema -->
+  <div class="card">
+    <div class="card-title">2C. Analysis Schema (Layer 2)</div>
+    <label>JSON Schema — group analysis output structure</label>
+    <textarea id="analysis-schema-text" rows="14" placeholder="JSON schema..."></textarea>
+    <div style="margin-top:10px">
+      <button class="btn btn-secondary" onclick="saveSchemas()">Save Analysis Schema</button>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 3: PROCESS -->
+<div id="tab-process" class="tab-pane">
+  <h2 style="margin-bottom:16px">Process Items — <span id="process-project-name" style="color:#C9A84C">No Active Project</span></h2>
+
+  <!-- Upload Zone -->
+  <div class="card">
+    <div class="card-title">Upload Documents</div>
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div style="font-size:2rem">📂</div>
+      <strong>Drag &amp; drop files here, or click to browse</strong>
+      <p>Accepts JPG, JPEG, PNG, TIFF, WEBP, PDF · Max 20MB per file · Up to 50 files</p>
+    </div>
+    <input type="file" id="file-input" multiple accept=".jpg,.jpeg,.png,.tiff,.webp,.pdf" style="display:none" onchange="handleFiles(this.files)" />
+
+    <div class="form-row form-row-3">
+      <div class="form-group">
+        <label>Year / Date (optional)</label>
+        <input type="text" id="proc-year" placeholder="e.g. 1902" />
+      </div>
+      <div class="form-group">
+        <label>Source Label (optional)</label>
+        <input type="text" id="proc-label" placeholder="e.g. 1902 diary batch 1" />
+      </div>
+      <div class="form-group">
+        <label>Notes (optional)</label>
+        <input type="text" id="proc-notes" placeholder="Any notes..." />
+      </div>
+    </div>
+
+    <div id="thumb-grid" class="thumb-grid"></div>
+
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px">
+      <button class="btn btn-primary" id="process-all-btn" onclick="processAll()" disabled>⚡ Process All</button>
+      <button class="btn btn-secondary" onclick="clearFiles()">Clear Files</button>
+      <span id="proc-status-text" style="font-size:0.85rem;color:#6B4E35"></span>
+    </div>
+    <div id="proc-progress-wrap" class="progress-wrap" style="display:none">
+      <div id="proc-progress-bar" class="progress-bar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- Results Table -->
+  <div class="card">
+    <div class="card-title">Processed Items</div>
+    <div id="items-table-wrap">
+      <table class="data-table" id="items-table">
+        <thead><tr><th>#</th><th>Year</th><th>Type</th><th>People</th><th>Rows</th><th>Confidence</th><th>Status</th><th>Download</th></tr></thead>
+        <tbody id="items-tbody"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px">
+      <button class="btn btn-secondary btn-sm" onclick="downloadZip('items')">📦 Download All Items ZIP</button>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 4: ANALYZE -->
+<div id="tab-analyze" class="tab-pane">
+  <h2 style="margin-bottom:8px">Analyze Collection — <span id="analyze-project-name" style="color:#C9A84C">No Active Project</span></h2>
+  <div id="analyze-readiness" class="alert alert-info" style="margin-bottom:16px">Load some items first to run analysis.</div>
+
+  <div class="card">
+    <div class="card-title">Analysis Controls</div>
+    <div class="form-row form-row-2">
+      <div class="form-group">
+        <label>Group By</label>
+        <select id="group-by-select">
+          <option value="all">All Items Together</option>
+          <option value="year">By Diary Year</option>
+          <option value="donee_priority">By Donee Priority (Machen)</option>
+          <option value="person">By Person</option>
+          <option value="tier">By Tier (Machen)</option>
+          <option value="category">By Register Category</option>
+          <option value="noteworthy">Noteworthy Only</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Analysis Depth</label>
+        <select id="depth-select">
+          <option value="quick">Quick</option>
+          <option value="standard" selected>Standard</option>
+          <option value="deep">Deep</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Custom Criteria (overrides Group By)</label>
+      <input type="text" id="custom-criteria" placeholder="Describe any grouping or analysis focus in plain language..." />
+    </div>
+    <button class="btn btn-primary" id="run-analysis-btn" onclick="runAnalysis()" disabled>🔬 Run Analysis</button>
+    <span id="analyze-status" style="font-size:0.85rem;color:#6B4E35;margin-left:12px"></span>
+  </div>
+
+  <!-- Analysis Results -->
+  <div id="analysis-results-wrap">
+    <div id="analysis-cards"></div>
+  </div>
+</div>
+
+<!-- TAB 5: INTELLIGENCE -->
+<div id="tab-intelligence" class="tab-pane">
+  <h2 style="margin-bottom:16px">Intelligence Hub</h2>
+
+  <!-- 5A: Pattern Dashboard -->
+  <div class="card">
+    <div class="card-title">5A. Pattern Dashboard</div>
+    <div id="intel-stats" class="intel-grid"></div>
+
+    <div class="form-row form-row-2" style="margin-top:16px">
+      <div>
+        <h4 style="margin-bottom:8px;font-size:0.9rem">Top People</h4>
+        <div id="top-people-bars" class="bar-chart"></div>
+      </div>
+      <div>
+        <h4 style="margin-bottom:8px;font-size:0.9rem">Top Places</h4>
+        <div id="top-places-bars" class="bar-chart"></div>
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <h4 style="margin-bottom:8px;font-size:0.9rem">Date Activity</h4>
+      <div id="date-bars" class="bar-chart"></div>
+    </div>
+    <div style="margin-top:12px">
+      <h4 style="margin-bottom:8px;font-size:0.9rem">Category Breakdown</h4>
+      <div id="category-bars" class="bar-chart"></div>
+    </div>
+  </div>
+
+  <!-- 5B: Person Search -->
+  <div class="card">
+    <div class="card-title">5B. Person Intelligence</div>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="person-search-input" placeholder="Search any person across all projects..." style="flex:1" onkeydown="if(event.key==='Enter')searchPerson()" />
+      <button class="btn btn-primary" onclick="searchPerson()">Search</button>
+    </div>
+    <div id="person-search-result" style="margin-top:12px"></div>
+  </div>
+
+  <!-- 5C: Place Search -->
+  <div class="card">
+    <div class="card-title">5C. Place Intelligence</div>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="place-search-input" placeholder="Search any place across all projects..." style="flex:1" onkeydown="if(event.key==='Enter')searchPlace()" />
+      <button class="btn btn-primary" onclick="searchPlace()">Search</button>
+    </div>
+    <div id="place-search-result" style="margin-top:12px"></div>
+  </div>
+
+  <!-- 5D: Cross-Project Index -->
+  <div class="card">
+    <div class="card-title">5D. Cross-Project Index</div>
+    <div id="cross-project-data">
+      <button class="btn btn-secondary btn-sm" onclick="loadCrossProject()">Load Cross-Project Data</button>
+    </div>
+  </div>
+
+  <!-- 5E: Timeline -->
+  <div class="card">
+    <div class="card-title">5E. Timeline View</div>
+    <div style="margin-bottom:10px;display:flex;gap:8px">
+      <button class="btn btn-secondary btn-sm" onclick="buildTimeline()">Build Timeline</button>
+    </div>
+    <div id="timeline-view" class="timeline"></div>
+  </div>
+
+  <!-- 5F: Ask ArchiveIQ -->
+  <div class="card">
+    <div class="card-title">5F. Ask ArchiveIQ</div>
+    <div id="ask-examples" style="margin-bottom:10px;font-size:0.8rem;color:#6B4E35">
+      Examples: "What do we know about Woodrow Wilson?" · "Which items support the Westminster case?" · "Summarize J. Gresham Machen's 1902 year" · "What gaps exist in 1895–1900?"
+    </div>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="ask-input" placeholder="Ask a question about your collection..." style="flex:1" onkeydown="if(event.key==='Enter')askArchiveIQ()" />
+      <button class="btn btn-primary" id="ask-btn" onclick="askArchiveIQ()">Ask</button>
+    </div>
+    <div id="ask-result"></div>
+  </div>
+</div>
+
+<!-- TAB 6: EXPORT -->
+<div id="tab-export" class="tab-pane">
+  <h2 style="margin-bottom:16px">Export</h2>
+
+  <!-- 6A: Per-Item -->
+  <div class="export-section">
+    <h3>6A. Per-Item Documents</h3>
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <input type="text" id="export-search" placeholder="Search items..." style="max-width:200px" oninput="filterExportItems()" />
+      <select id="export-filter-proj" onchange="filterExportItems()"><option value="">All Projects</option></select>
+      <select id="export-filter-conf" onchange="filterExportItems()"><option value="">Any Confidence</option><option>high</option><option>medium</option><option>low</option></select>
+      <button class="btn btn-secondary btn-sm" onclick="downloadZip('items')">📦 Download Filtered ZIP</button>
+    </div>
+    <table class="data-table" id="export-items-table">
+      <thead><tr><th>ID</th><th>Project</th><th>Year</th><th>Type</th><th>Rows</th><th>Confidence</th><th>Download</th></tr></thead>
+      <tbody id="export-items-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- 6B: Analysis Reports -->
+  <div class="export-section">
+    <h3>6B. Analysis Reports</h3>
+    <table class="data-table" id="analysis-export-table">
+      <thead><tr><th>Group</th><th>Project</th><th>Items</th><th>Created</th><th>Download</th></tr></thead>
+      <tbody id="analysis-tbody"></tbody>
+    </table>
+    <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="downloadZip('analysis')">📦 Download All Analysis ZIP</button>
+  </div>
+
+  <!-- 6C: Master Reports -->
+  <div class="export-section">
+    <h3>6C. Master Reports</h3>
+    <div id="master-reports-list"></div>
+    <button class="btn btn-secondary btn-sm" style="margin-top:8px" onclick="downloadZip('all')">📦 Download Everything ZIP</button>
+  </div>
+
+  <!-- 6D: Data Exports -->
+  <div class="export-section">
+    <h3>6D. Data Exports</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-secondary" onclick="exportJSON('items')">📥 Export Items as JSON</button>
+      <button class="btn btn-secondary" onclick="exportJSON('patterns')">📥 Export Patterns as JSON</button>
+      <button class="btn btn-secondary" onclick="exportCSV('rows')">📊 Export All Rows as CSV</button>
+      <button class="btn btn-secondary" onclick="exportCSV('timeline')">📊 Export Timeline as CSV</button>
+    </div>
+  </div>
+
+  <!-- 6E: Custom Export Builder -->
+  <div class="export-section">
+    <h3>6E. Custom Export Builder</h3>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="custom-export-input" placeholder='e.g. "All Voice rows from Machen 1890–1910" or "All items mentioning Woodrow Wilson as CSV"' style="flex:1" />
+      <button class="btn btn-primary" onclick="buildCustomExport()">Build Export</button>
+    </div>
+    <div id="custom-export-result" style="margin-top:8px;font-size:0.82rem;color:#6B4E35"></div>
+  </div>
+</div>
+
+</div><!-- /tabs-content -->
+
+<!-- New Project Modal -->
+<div id="new-project-modal" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-title">New Project</div>
+    <div class="form-group">
+      <label>Project Name *</label>
+      <input type="text" id="np-name" placeholder="e.g. Smith Family Correspondence" />
+    </div>
+    <div class="form-group">
+      <label>Project Type</label>
+      <select id="np-type">
+        <option>Personal Diary / Family Papers</option>
+        <option>Correspondence Collection</option>
+        <option>News Archive</option>
+        <option>Photograph Collection</option>
+        <option>Legal Documents</option>
+        <option>Business Records</option>
+        <option>Military Records</option>
+        <option>Church Records</option>
+        <option>Academic Papers</option>
+        <option>Custom</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="np-desc" rows="3"></textarea>
+    </div>
+    <div class="form-row form-row-2">
+      <div class="form-group">
+        <label>Primary Language</label>
+        <input type="text" id="np-lang" value="English" />
+      </div>
+      <div class="form-group">
+        <label>Primary Researcher</label>
+        <input type="text" id="np-researcher" />
+      </div>
+    </div>
+    <div class="form-row form-row-2">
+      <div class="form-group">
+        <label>Date Range From</label>
+        <input type="text" id="np-from" placeholder="e.g. 1890" />
+      </div>
+      <div class="form-group">
+        <label>Date Range To</label>
+        <input type="text" id="np-to" placeholder="e.g. 1931" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Institution / Donee</label>
+      <input type="text" id="np-institution" />
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <textarea id="np-notes" rows="2"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="createProject()">Create Project</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Project Modal -->
+<div id="edit-project-modal" class="modal-overlay" onclick="if(event.target===this)closeEditModal()">
+  <div class="modal">
+    <div class="modal-title">Edit Project</div>
+    <input type="hidden" id="ep-id" />
+    <div class="form-group"><label>Project Name</label><input type="text" id="ep-name" /></div>
+    <div class="form-group"><label>Description</label><textarea id="ep-desc" rows="3"></textarea></div>
+    <div class="form-group"><label>Primary Researcher</label><input type="text" id="ep-researcher" /></div>
+    <div class="form-group"><label>Institution / Donee</label><input type="text" id="ep-institution" /></div>
+    <div class="form-group"><label>Notes</label><textarea id="ep-notes" rows="2"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditProject()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = '/archiveiq/api';
+let activeProjectId = null;
+let allItems = [];
+let allAnalysis = [];
+let uploadedFiles = [];
+let isProcessing = false;
+
+// ── Utilities ──────────────────────────────────────────────────────────
+async function api(path, opts={}) {
+  const res = await fetch(BASE + path, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({error: res.statusText}));
+    throw new Error(err.error || res.statusText);
+  }
+  return res.json();
+}
+
+function el(id) { return document.getElementById(id); }
+function show(id) { el(id).style.display = ''; }
+function hide(id) { el(id).style.display = 'none'; }
+
+function showAlert(id, msg, type='info') {
+  const e = el(id);
+  if (!e) return;
+  e.className = `alert alert-${type}`;
+  e.textContent = msg;
+  e.style.display = '';
+  setTimeout(() => { e.style.display = 'none'; }, 4000);
+}
+
+// ── Status Bar ─────────────────────────────────────────────────────────
+async function refreshStatus() {
+  try {
+    const s = await api('/status');
+    el('stat-project').textContent = s.activeProject || 'None';
+    el('stat-items').textContent = s.activeProjectItems;
+    el('stat-rows').textContent = s.totalRows;
+    el('stat-patterns').textContent = s.patternCount;
+    const badge = el('api-badge');
+    badge.textContent = s.apiKeyActive ? 'API: Active' : 'API: Missing Key';
+    badge.className = 'api-badge' + (s.apiKeyActive ? '' : ' inactive');
+    activeProjectId = s.activeProjectId;
+    updateProjectLabels(s.activeProject);
+  } catch(e) {}
+}
+
+function updateProjectLabels(name) {
+  ['setup','process','analyze'].forEach(t => {
+    const e = el(t + '-project-name');
+    if (e) e.textContent = name || 'No Active Project';
+  });
+}
+
+setInterval(refreshStatus, 4000);
+refreshStatus();
+
+// ── Tab Navigation ─────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+
+  if (name === 'setup') loadSetup();
+  if (name === 'process') loadItems();
+  if (name === 'analyze') loadAnalyze();
+  if (name === 'intelligence') loadIntelligence();
+  if (name === 'export') loadExport();
+}
+
+// ── TAB 1: PROJECTS ────────────────────────────────────────────────────
+async function loadProjects() {
+  try {
+    const data = await api('/projects');
+    renderProjects(data.projects, data.activeProject);
+  } catch(e) { console.error(e); }
+}
+
+function renderProjects(projects, activePid) {
+  const grid = el('project-list');
+  if (!projects.length) { grid.innerHTML = '<p style="color:#6B4E35">No projects yet. Create one above.</p>'; return; }
+  grid.innerHTML = projects.map(p => `
+    <div class="project-card ${p.id === activePid ? 'active-project' : ''}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between">
+        <h3>${p.name}</h3>
+        ${p.id === activePid ? '<span class="active-pill">ACTIVE</span>' : ''}
+      </div>
+      <div class="project-type-badge">${p.type}</div>
+      <div style="font-size:0.8rem;color:#6B4E35;margin-bottom:6px">${p.description ? p.description.substring(0,100) + (p.description.length>100?'...':'') : ''}</div>
+      <div class="project-stats">
+        <span>📄 ${p.item_count} items</span>
+        <span>📋 ${p.row_count} rows</span>
+        ${p.date_range_from ? `<span>📅 ${p.date_range_from}–${p.date_range_to}</span>` : ''}
+      </div>
+      <div style="font-size:0.76rem;color:#A07830;margin-bottom:6px">Researcher: ${p.primary_researcher||'—'}</div>
+      <div class="project-actions">
+        ${p.id !== activePid ? `<button class="btn btn-primary btn-sm" onclick="setActive('${p.id}')">Set Active</button>` : '<button class="btn btn-secondary btn-sm" disabled>Active</button>'}
+        <button class="btn btn-secondary btn-sm" onclick="editProject('${p.id}','${escHtml(p.name)}','${escHtml(p.description||'')}','${escHtml(p.primary_researcher||'')}','${escHtml(p.institution||'')}','${escHtml(p.notes||'')}')">Edit</button>
+        ${p.id !== 'machen-family-papers' ? `<button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">Delete</button>` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
+function escHtml(s) { return String(s).replace(/'/g,"&#39;").replace(/"/g,"&quot;"); }
+
+async function setActive(id) {
+  await api('/projects/set-active', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({projectId:id}) });
+  await refreshStatus();
+  loadProjects();
+}
+
+async function deleteProject(id) {
+  if (!confirm('Delete this project? Items will remain in the intelligence bus.')) return;
+  await api('/projects/' + id, { method:'DELETE' });
+  loadProjects();
+}
+
+function openNewProjectModal() { el('new-project-modal').classList.add('open'); }
+function closeModal() { el('new-project-modal').classList.remove('open'); }
+
+async function createProject() {
+  const name = el('np-name').value.trim();
+  if (!name) { alert('Project name is required'); return; }
+  try {
+    await api('/projects/create', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        name, type: el('np-type').value, description: el('np-desc').value,
+        primary_language: el('np-lang').value, primary_researcher: el('np-researcher').value,
+        date_range_from: el('np-from').value, date_range_to: el('np-to').value,
+        institution: el('np-institution').value, notes: el('np-notes').value
+      })
+    });
+    closeModal();
+    loadProjects();
+    refreshStatus();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+function editProject(id, name, desc, researcher, institution, notes) {
+  el('ep-id').value = id;
+  el('ep-name').value = name;
+  el('ep-desc').value = desc;
+  el('ep-researcher').value = researcher;
+  el('ep-institution').value = institution;
+  el('ep-notes').value = notes;
+  el('edit-project-modal').classList.add('open');
+}
+function closeEditModal() { el('edit-project-modal').classList.remove('open'); }
+async function saveEditProject() {
+  const id = el('ep-id').value;
+  await api('/projects/' + id, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ name: el('ep-name').value, description: el('ep-desc').value, primary_researcher: el('ep-researcher').value, institution: el('ep-institution').value, notes: el('ep-notes').value })
+  });
+  closeEditModal();
+  loadProjects();
+}
+
+// ── TAB 2: SETUP ───────────────────────────────────────────────────────
+async function loadSetup() {
+  if (!activeProjectId) { show('no-active-warn'); return; }
+  hide('no-active-warn');
+  try {
+    const data = await api('/setup/' + activeProjectId);
+    el('protocol-text').value = data.protocol || '';
+    el('item-schema-text').value = data.item_schema || '';
+    el('analysis-schema-text').value = data.analysis_schema || '';
+    if (data.protocol_version > 0) {
+      el('protocol-saved-at').textContent = `Version ${data.protocol_version} saved`;
+    }
+    if (data.templates) {
+      const sel = el('template-select');
+      sel.innerHTML = '<option value="">— Select Template —</option>' + data.templates.map(t => `<option>${t}</option>`).join('');
+    }
+  } catch(e) { console.error(e); }
+}
+
+async function loadTemplate() {
+  const name = el('template-select').value;
+  if (!name) return;
+  try {
+    const data = await api('/setup/template', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({templateName: name}) });
+    if (data.protocol) el('protocol-text').value = data.protocol;
+    if (data.item) el('item-schema-text').value = data.item;
+    if (data.analysis) el('analysis-schema-text').value = data.analysis;
+  } catch(e) { alert('Error loading template: ' + e.message); }
+}
+
+async function saveProtocol() {
+  if (!activeProjectId) { alert('No active project'); return; }
+  try {
+    const data = await api('/setup/protocol', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ projectId: activeProjectId, content: el('protocol-text').value })
+    });
+    el('protocol-saved-at').textContent = `Saved — Version ${data.version} · ${new Date().toLocaleTimeString()}`;
+  } catch(e) { alert('Error saving protocol: ' + e.message); }
+}
+
+async function saveSchemas() {
+  if (!activeProjectId) { alert('No active project'); return; }
+  try {
+    const data = await api('/setup/schema', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ projectId: activeProjectId, item_schema: el('item-schema-text').value, analysis_schema: el('analysis-schema-text').value })
+    });
+    el('schema-saved-at').textContent = `Saved — Version ${data.version} · ${new Date().toLocaleTimeString()}`;
+  } catch(e) { alert('Error saving schemas: ' + e.message); }
+}
+
+async function showProtocolHistory() {
+  const histEl = el('protocol-history');
+  if (histEl.style.display !== 'none') { histEl.style.display = 'none'; return; }
+  try {
+    const data = await api('/setup/history/' + activeProjectId);
+    el('protocol-version-list').innerHTML = data.protocols.map(v => `
+      <div class="version-item">
+        <span>Version ${v.version} — ${new Date(v.saved_at).toLocaleString()}</span>
+        <button class="btn btn-secondary btn-sm" onclick="restoreProtocol(${v.version})">Restore</button>
+      </div>
+    `).join('') || '<p style="font-size:0.82rem;color:#6B4E35;padding:8px">No saved versions yet.</p>';
+    histEl.style.display = '';
+  } catch(e) {}
+}
+
+async function restoreProtocol(version) {
+  if (!confirm(`Restore version ${version}?`)) return;
+  try {
+    await api('/setup/protocol', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ projectId: activeProjectId, restore_version: version })
+    });
+    loadSetup();
+  } catch(e) { alert('Error restoring: ' + e.message); }
+}
+
+// ── TAB 3: PROCESS ─────────────────────────────────────────────────────
+const dropZone = el('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+
+function handleFiles(files) {
+  for (const f of files) {
+    if (!uploadedFiles.find(u => u.name === f.name && u.size === f.size)) {
+      uploadedFiles.push(f);
+    }
+  }
+  renderThumbs();
+  el('process-all-btn').disabled = uploadedFiles.length === 0 || !activeProjectId;
+}
+
+function renderThumbs() {
+  const grid = el('thumb-grid');
+  grid.innerHTML = uploadedFiles.map((f, i) => `
+    <div class="thumb-item" id="thumb-${i}">
+      <div style="font-size:1.2rem">${f.name.endsWith('.pdf') ? '📄' : '🖼'}</div>
+      <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px" title="${f.name}">${f.name}</div>
+      <div class="status-badge status-queued" id="thumb-status-${i}">Queued</div>
+    </div>
+  `).join('');
+}
+
+function clearFiles() { uploadedFiles = []; el('thumb-grid').innerHTML = ''; el('process-all-btn').disabled = true; }
+
+async function processAll() {
+  if (!activeProjectId) { alert('No active project selected'); return; }
+  if (uploadedFiles.length === 0) { alert('No files uploaded'); return; }
+  if (isProcessing) return;
+  isProcessing = true;
+
+  const btn = el('process-all-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Processing...';
+  el('proc-progress-wrap').style.display = '';
+
+  let done = 0;
+  for (let i = 0; i < uploadedFiles.length; i++) {
+    const file = uploadedFiles[i];
+    const thumbStatus = el('thumb-status-' + i);
+    if (thumbStatus) { thumbStatus.className = 'status-badge status-processing'; thumbStatus.textContent = 'Processing'; }
+    el('proc-status-text').textContent = `Processing ${i+1} of ${uploadedFiles.length} — ${file.name}`;
+    el('proc-progress-bar').style.width = Math.round((i / uploadedFiles.length) * 100) + '%';
+
+    try {
+      const formData = new FormData();
+      formData.append('files', file);
+      formData.append('projectId', activeProjectId);
+      formData.append('sourceYear', el('proc-year').value);
+      formData.append('sourceLabel', el('proc-label').value);
+      formData.append('notes', el('proc-notes').value);
+
+      const res = await fetch(BASE + '/process', { method:'POST', body: formData });
+      const data = await res.json();
+      if (thumbStatus) { thumbStatus.className = 'status-badge status-done'; thumbStatus.textContent = 'Done'; }
+      if (data.items) { data.items.forEach(item => { if (!allItems.find(e => e.item_id === item.item_id)) allItems.push(item); }); }
+      done++;
+    } catch(e) {
+      if (thumbStatus) { thumbStatus.className = 'status-badge status-error'; thumbStatus.textContent = 'Error'; }
+    }
+    el('proc-progress-bar').style.width = Math.round(((i+1) / uploadedFiles.length) * 100) + '%';
+  }
+
+  isProcessing = false;
+  btn.disabled = false;
+  btn.textContent = '⚡ Process All';
+  el('proc-status-text').textContent = `Done — ${done} processed`;
+  renderItemsTable(allItems);
+  refreshStatus();
+}
+
+async function loadItems() {
+  if (!activeProjectId) return;
+  try {
+    const data = await api('/items/' + activeProjectId);
+    allItems = data.items || [];
+    renderItemsTable(allItems);
+    el('process-all-btn').disabled = uploadedFiles.length === 0 || !activeProjectId;
+  } catch(e) {}
+}
+
+function renderItemsTable(items) {
+  const tbody = el('items-tbody');
+  tbody.innerHTML = items.map((item, i) => {
+    const rows = item.register_rows?.length ?? 0;
+    const people = (item.people_extracted || item.people_mentioned || []).slice(0,2).join(', ');
+    const year = item.source_year || item.date_on_item || '';
+    const type = item.source_type || item.item_type || '';
+    const conf = item.confidence_score || '';
+    const status = item.status || '';
+    return `<tr>
+      <td>${i+1}</td>
+      <td>${year}</td>
+      <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis">${type}</td>
+      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${people}">${people}</td>
+      <td>${rows}</td>
+      <td><span class="status-badge ${conf==='high'?'status-done':conf==='medium'?'status-processing':'status-review'}">${conf}</span></td>
+      <td><span class="status-badge ${status==='done'?'status-done':status==='needs_review'?'status-review':'status-queued'}">${status}</span></td>
+      <td>${item.docx_path ? `<button class="btn btn-secondary btn-sm" onclick="downloadItem('${item.item_id}')">⬇ .docx</button>` : '—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:#6B4E35;padding:20px">No items yet</td></tr>';
+}
+
+function downloadItem(id) { window.open(BASE + '/export/item/' + id); }
+function downloadZip(type) { window.open(BASE + '/export/zip/' + type); }
+
+// ── TAB 4: ANALYZE ─────────────────────────────────────────────────────
+async function loadAnalyze() {
+  if (!activeProjectId) return;
+  try {
+    const data = await api('/items/' + activeProjectId);
+    const items = data.items || [];
+    const rows = items.reduce((s,i) => s + (i.register_rows?.length||0), 0);
+    const people = new Set(items.flatMap(i => i.people_extracted || i.people_mentioned || [])).size;
+    el('analyze-readiness').className = items.length >= 1 ? 'alert alert-success' : 'alert alert-info';
+    el('analyze-readiness').textContent = items.length >= 1
+      ? `${items.length} items ready · ${rows} Register rows · ${people} people indexed`
+      : 'Process some items first (Tab 3) to enable analysis.';
+    el('run-analysis-btn').disabled = items.length < 1;
+
+    const analysisData = await api('/analysis/' + activeProjectId);
+    allAnalysis = analysisData.analysis || [];
+    renderAnalysisCards(allAnalysis);
+  } catch(e) {}
+}
+
+async function runAnalysis() {
+  if (!activeProjectId) { alert('No active project'); return; }
+  const btn = el('run-analysis-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Analyzing...';
+  el('analyze-status').textContent = 'Sending to Claude AI...';
+
+  try {
+    const customCriteria = el('custom-criteria').value.trim();
+    const data = await api('/analyze', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        projectId: activeProjectId,
+        groupBy: el('group-by-select').value,
+        customCriteria: customCriteria || undefined,
+        depth: el('depth-select').value
+      })
+    });
+    el('analyze-status').textContent = `Done — ${data.groups} group(s) analyzed`;
+    allAnalysis = [...(data.results || []), ...allAnalysis];
+    renderAnalysisCards(allAnalysis);
+    refreshStatus();
+  } catch(e) { el('analyze-status').textContent = 'Error: ' + e.message; }
+
+  btn.disabled = false;
+  btn.textContent = '🔬 Run Analysis';
+}
+
+function renderAnalysisCards(analyses) {
+  el('analysis-cards').innerHTML = analyses.map(a => {
+    const d = a.data || {};
+    return `
+    <div class="analysis-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <h4>${a.group_label}</h4>
+        ${a.docx_path ? `<button class="btn btn-secondary btn-sm" onclick="window.open(BASE+'/export/analysis/${a.id}')">⬇ .docx</button>` : ''}
+      </div>
+      <div class="analysis-meta">${a.item_count} items · ${new Date(a.created_at).toLocaleString()}</div>
+      ${d.archivist_summary ? `<p style="font-size:0.85rem;color:#3D2B1F;margin-bottom:6px"><strong>Archivist Summary:</strong> ${String(d.archivist_summary).substring(0,300)}...</p>` : ''}
+      ${d.narrative_diary || d.narrative_summary ? `<p style="font-size:0.83rem;color:#5A3E2B;font-style:italic">${String(d.narrative_diary||d.narrative_summary).substring(0,400)}...</p>` : ''}
+      ${(d.persons_directory||[]).length ? `<p style="font-size:0.78rem;color:#6B4E35;margin-top:6px">People: ${(d.persons_directory||[]).slice(0,5).map(p=>p.name||p).join(', ')}${d.persons_directory.length>5?', ...':''}</p>` : ''}
+    </div>`;
+  }).join('') || '<p style="color:#6B4E35">No analysis results yet.</p>';
+}
+
+// ── TAB 5: INTELLIGENCE ────────────────────────────────────────────────
+async function loadIntelligence() {
+  try {
+    const data = await api('/intelligence/patterns');
+    renderIntelStats(data);
+    renderBars('top-people-bars', data.topPeople, 'name', 'count');
+    renderBars('top-places-bars', data.topPlaces, 'name', 'count');
+    renderBars('date-bars', data.dateBreakdown, 'year', 'count');
+    renderBars('category-bars', data.categoryBreakdown, 'category', 'count');
+  } catch(e) {}
+}
+
+function renderIntelStats(data) {
+  el('intel-stats').innerHTML = `
+    <div class="intel-card"><div class="big-num">${data.totalItems}</div><div class="label">Total Items</div></div>
+    <div class="intel-card"><div class="big-num">${data.totalRows}</div><div class="label">Total Rows</div></div>
+    <div class="intel-card"><div class="big-num">${data.topPeople?.length||0}</div><div class="label">Unique People</div></div>
+    <div class="intel-card"><div class="big-num">${data.topPlaces?.length||0}</div><div class="label">Unique Places</div></div>
+    <div class="intel-card"><div class="big-num">${data.noteworthyCount||0}</div><div class="label">Noteworthy Items</div></div>
+    <div class="intel-card"><div class="big-num">${data.confidenceDist?.high||0}</div><div class="label">High Confidence</div></div>
+  `;
+}
+
+function renderBars(containerId, items, labelKey, countKey) {
+  if (!items || !items.length) { el(containerId).innerHTML = '<p style="font-size:0.78rem;color:#6B4E35">No data yet</p>'; return; }
+  const max = Math.max(...items.map(i => i[countKey]));
+  el(containerId).innerHTML = items.slice(0,10).map(item => `
+    <div class="bar-row">
+      <span class="bar-label" title="${item[labelKey]}">${item[labelKey]}</span>
+      <div class="bar-fill" style="width:${Math.round((item[countKey]/max)*120)}px"></div>
+      <span class="bar-count">${item[countKey]}</span>
+    </div>
+  `).join('');
+}
+
+async function searchPerson() {
+  const name = el('person-search-input').value.trim();
+  if (!name) return;
+  try {
+    const data = await api('/intelligence/person/' + encodeURIComponent(name));
+    el('person-search-result').innerHTML = `
+      <div class="analysis-card">
+        <h4>${name} — ${data.itemCount} item(s)</h4>
+        ${data.dateRange ? `<div class="analysis-meta">Date range: ${data.dateRange.from} – ${data.dateRange.to}</div>` : ''}
+        ${data.projects?.length ? `<p style="font-size:0.82rem"><strong>Projects:</strong> ${data.projects.join(', ')}</p>` : ''}
+        ${data.mentions?.length ? `<p style="font-size:0.82rem;margin-top:6px"><strong>Mentions (first 5):</strong></p>
+          ${data.mentions.slice(0,5).map(m=>`<div style="font-size:0.8rem;padding:4px 0;border-bottom:1px solid #E8DBC8">${m.date||''} — ${m.context?.substring(0,150)||'Found in item'}</div>`).join('')}` : ''}
+        ${data.voiceRows?.length ? `<p style="font-size:0.82rem;margin-top:8px"><strong>Voice Quotations (${data.voiceRows.length}):</strong></p>
+          ${data.voiceRows.slice(0,3).map(r=>`<div style="font-size:0.8rem;font-style:italic;padding:4px 8px;background:#FFF9E6;margin:3px 0;border-radius:4px">"${r.fact?.substring(0,200)}"</div>`).join('')}` : ''}
+      </div>`;
+  } catch(e) { el('person-search-result').innerHTML = `<p style="color:#721C24">Error: ${e.message}</p>`; }
+}
+
+async function searchPlace() {
+  const name = el('place-search-input').value.trim();
+  if (!name) return;
+  try {
+    const data = await api('/intelligence/place/' + encodeURIComponent(name));
+    el('place-search-result').innerHTML = `
+      <div class="analysis-card">
+        <h4>${name} — ${data.itemCount} item(s)</h4>
+        ${data.mentions?.slice(0,5).map(m=>`<div style="font-size:0.8rem;padding:4px 0;border-bottom:1px solid #E8DBC8">${m.date||''} — ${m.context?.substring(0,150)||'Found in item'}</div>`).join('') || '<p style="font-size:0.82rem;color:#6B4E35">No mentions found</p>'}
+      </div>`;
+  } catch(e) { el('place-search-result').innerHTML = `<p style="color:#721C24">Error: ${e.message}</p>`; }
+}
+
+async function loadCrossProject() {
+  try {
+    const data = await api('/intelligence/cross-project');
+    el('cross-project-data').innerHTML = `
+      <p style="font-size:0.85rem;margin-bottom:10px">${data.projectCount} projects · ${data.totalItems} total items</p>
+      ${data.sharedPeople?.length ? `<h4 style="font-size:0.88rem;margin-bottom:6px">People in Multiple Projects</h4>${data.sharedPeople.map(s=>`<div style="font-size:0.8rem;padding:3px 0">${s.name}: ${s.projects.join(', ')}</div>`).join('')}` : '<p style="font-size:0.82rem;color:#6B4E35">No shared entities yet — process items in multiple projects</p>'}
+    `;
+  } catch(e) {}
+}
+
+function buildTimeline() {
+  const timeline = el('timeline-view');
+  timeline.innerHTML = '';
+  const timelineItems = [];
+  for (const item of allItems) {
+    for (const row of item.register_rows || []) {
+      if (row.date) timelineItems.push({ date: row.date, fact: row.fact, person: row.person, category: row.category, item_id: item.item_id });
+    }
+  }
+  timelineItems.sort((a,b) => a.date.localeCompare(b.date));
+  if (!timelineItems.length) { timeline.innerHTML = '<p style="font-size:0.85rem;color:#6B4E35">No dated events yet — process items first</p>'; return; }
+  timeline.innerHTML = timelineItems.slice(0,50).map(e => `
+    <div class="timeline-event">
+      <div class="t-date">${e.date} ${e.person ? '· ' + e.person.split('/')[0].trim() : ''} <span style="font-size:0.7rem;background:#E8DBC8;padding:1px 6px;border-radius:8px">${e.category||''}</span></div>
+      <div class="t-fact">${e.fact?.substring(0,200)||''}</div>
+    </div>
+  `).join('') + (timelineItems.length > 50 ? `<div style="font-size:0.8rem;color:#6B4E35;text-align:center;padding:8px">… ${timelineItems.length-50} more events not shown</div>` : '');
+}
+
+async function askArchiveIQ() {
+  const question = el('ask-input').value.trim();
+  if (!question) return;
+  const btn = el('ask-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Asking...';
+  el('ask-result').innerHTML = '<div class="alert alert-info">Consulting ArchiveIQ intelligence...</div>';
+  try {
+    const data = await api('/intelligence/ask', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ question, projectId: activeProjectId })
+    });
+    el('ask-result').innerHTML = `<div class="ask-result">${data.answer}</div>`;
+  } catch(e) { el('ask-result').innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`; }
+  btn.disabled = false;
+  btn.textContent = 'Ask';
+}
+
+// ── TAB 6: EXPORT ──────────────────────────────────────────────────────
+async function loadExport() {
+  try {
+    // Load all items
+    const itemData = await api('/items');
+    const items = itemData.items || [];
+    const projData = await api('/projects');
+    const projects = projData.projects || [];
+
+    // Populate project filter
+    const projFilter = el('export-filter-proj');
+    projFilter.innerHTML = '<option value="">All Projects</option>' + projects.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+
+    renderExportItems(items);
+    renderAnalysisTable(allAnalysis.length ? allAnalysis : (await api('/analysis')).analysis || []);
+    renderMasterReports(projects);
+  } catch(e) {}
+}
+
+function renderExportItems(items) {
+  el('export-items-tbody').innerHTML = items.map(item => {
+    const year = item.source_year || item.date_on_item || '';
+    const type = item.source_type || item.item_type || '';
+    const rows = item.register_rows?.length ?? 0;
+    const conf = item.confidence_score || '';
+    const projName = item.project_id;
+    return `<tr>
+      <td style="font-size:0.72rem;max-width:80px;overflow:hidden;text-overflow:ellipsis">${item.item_id.substring(0,8)}</td>
+      <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis">${projName}</td>
+      <td>${year}</td>
+      <td style="max-width:80px;overflow:hidden;text-overflow:ellipsis">${type}</td>
+      <td>${rows}</td>
+      <td>${conf}</td>
+      <td>${item.docx_path ? `<button class="btn btn-secondary btn-sm" onclick="downloadItem('${item.item_id}')">⬇</button>` : '—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" style="text-align:center;color:#6B4E35;padding:20px">No items yet</td></tr>';
+}
+
+function filterExportItems() {
+  // Simple client-side filter — could call search API too
+}
+
+function renderAnalysisTable(analyses) {
+  el('analysis-tbody').innerHTML = analyses.map(a => `
+    <tr>
+      <td>${a.group_label}</td>
+      <td>${a.project_id}</td>
+      <td>${a.item_count}</td>
+      <td>${new Date(a.created_at).toLocaleDateString()}</td>
+      <td>${a.docx_path ? `<button class="btn btn-secondary btn-sm" onclick="window.open(BASE+'/export/analysis/${a.id}')">⬇ .docx</button>` : '—'}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" style="text-align:center;color:#6B4E35;padding:20px">No analysis yet</td></tr>';
+}
+
+function renderMasterReports(projects) {
+  el('master-reports-list').innerHTML = projects.map(p => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px;background:#fff;border:1px solid #D4B896;border-radius:6px;margin-bottom:8px">
+      <div style="flex:1">
+        <strong>${p.name}</strong>
+        <span style="font-size:0.78rem;color:#6B4E35;margin-left:8px">${p.item_count} items</span>
+      </div>
+      <button class="btn btn-primary" onclick="window.open(BASE+'/export/master/${p.id}')">⬇ Master Report</button>
+    </div>
+  `).join('') || '<p style="color:#6B4E35;font-size:0.85rem">Run analysis first to generate master reports.</p>';
+}
+
+function exportJSON(type) {
+  if (type === 'items') {
+    const blob = new Blob([JSON.stringify(allItems, null, 2)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'archiveiq_items.json'; a.click();
+  } else if (type === 'patterns') {
+    window.open(BASE + '/intelligence/patterns');
+  }
+}
+
+function exportCSV(type) {
+  const suffix = activeProjectId ? '?projectId=' + activeProjectId : '';
+  window.open(BASE + '/export/csv/' + type + suffix);
+}
+
+async function buildCustomExport() {
+  const description = el('custom-export-input').value.trim();
+  if (!description) return;
+  el('custom-export-result').textContent = 'Building export with AI...';
+  try {
+    const res = await fetch(BASE + '/export/custom', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ description, projectId: activeProjectId })
+    });
+    if (res.headers.get('content-type')?.includes('text/csv') || res.headers.get('content-type')?.includes('application/json')) {
+      const blob = await res.blob();
+      const cd = res.headers.get('content-disposition') || '';
+      const fname = cd.match(/filename="([^"]+)"/)?.[1] || 'custom_export';
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; a.click();
+      el('custom-export-result').textContent = 'Export downloaded: ' + fname;
+    } else {
+      const data = await res.json();
+      el('custom-export-result').textContent = data.raw || 'Done';
+    }
+  } catch(e) { el('custom-export-result').textContent = 'Error: ' + e.message; }
+}
+
+// ── Init ───────────────────────────────────────────────────────────────
+loadProjects();
+</script>
+</body>
+</html>

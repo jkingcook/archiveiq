@@ -1,0 +1,782 @@
+Build a full-stack web application called "ArchiveIQ" — a universal 
+archival super intelligence platform. Node.js + Express backend, 
+vanilla HTML/CSS/JS frontend, single index.html. Fully deployable 
+on Replit.
+
+===================================================
+## CORE PHILOSOPHY — SHARED INTELLIGENCE
+===================================================
+ArchiveIQ is not a scanning tool. It is a living intelligence platform 
+where every component shares a common memory and communicates with every 
+other component in real time.
+
+The Shared Intelligence Bus is a global server-side state object that 
+ALL modules read from and write to:
+
+const INTELLIGENCE_BUS = {
+  projects: {},           // all projects and their configs
+  activeProject: null,    // currently active project
+  itemStore: [],          // all processed items across session
+  analysisStore: [],      // all analysis results
+  patternLibrary: {},     // patterns learned across all items
+  crossProjectIndex: {},  // people/places/themes across ALL projects
+  sessionLog: [],         // full activity log with timestamps
+  schemaRegistry: {},     // all saved schemas by project
+  protocolRegistry: {},   // all saved protocols by project
+  exportQueue: []         // pending exports
+}
+
+Every API route reads from and writes to INTELLIGENCE_BUS. No module 
+operates in isolation. When a new item is processed, the pattern library 
+updates. When analysis runs, it reads from all items across the project. 
+When exports generate, they pull from the full intelligence state.
+
+===================================================
+## STACK
+===================================================
+- Backend: Node.js + Express
+- Frontend: Vanilla HTML/CSS/JS (single index.html)
+- npm: express, multer, anthropic, docx, archiver, uuid
+- Model: claude-sonnet-4-20250514, max_tokens: 4000
+- ANTHROPIC_API_KEY via Replit Secrets only
+
+===================================================
+## UI — 6 TABS
+===================================================
+Design:
+- Background: #FAF7F0 (warm cream)
+- Text: #3D2B1F (dark brown)
+- Accent: #C9A84C (gold)
+- Border: #D4B896
+- Font: Georgia headers, system-ui body
+- Mobile-friendly
+- Header: "ArchiveIQ" with subtitle "Universal Archival Intelligence"
+
+Live status bar (always visible below header):
+  [Project: NAME] [Items: N] [Rows: N] [Patterns: N] [API: Active/Inactive]
+
+Tabs:
+  1. Projects
+  2. Setup
+  3. Process
+  4. Analyze
+  5. Intelligence
+  6. Export
+
+===================================================
+## TAB 1 — PROJECTS
+===================================================
+ArchiveIQ is multi-project. Every project has its own protocol, schema, 
+item store, and analysis — but ALL projects share the cross-project 
+intelligence index.
+
+### Project Panel
+- "New Project" button → opens a modal with fields:
+    Project Name (text)
+    Project Type (dropdown):
+      Personal Diary / Family Papers / Correspondence Collection /
+      News Archive / Photograph Collection / Legal Documents /
+      Business Records / Military Records / Church Records /
+      Academic Papers / Custom
+    Description (textarea)
+    Primary Language (text, default: English)
+    Date Range (from / to, optional)
+    Primary Researcher (text)
+    Institution / Donee (text, optional)
+    Notes (textarea)
+
+- Project list shows all created projects as cards:
+    Card: [Project Name] | [Type] | [Item Count] | [Row Count] | 
+          [Last Active] | [Set Active] [Edit] [Delete]
+
+- "Set Active" makes a project the current working context — all 
+  processing, setup, and analysis operate on the active project
+
+- Active project shown in gold highlight and in the status bar
+
+### Built-in Project: Machen Family Papers
+Pre-create this project on first load:
+  Name: Machen Family Papers — Cook Collection
+  Type: Personal Diary / Family Papers
+  Description: Minnie Gresham Machen daily diary corpus 1890–1928. 
+    Cook collection. Compiled by Lyndon W. Cook, Hendersonville TN.
+  Primary Researcher: Lyndon W. Cook
+  Institution: Westminster Theological Seminary / Library of Congress /
+    Princeton University Library
+  Date Range: 1890–1931
+
+===================================================
+## TAB 2 — SETUP
+===================================================
+All setup is scoped to the ACTIVE PROJECT. Switching projects 
+automatically loads that project's saved protocol and schemas.
+
+### 2A. Processing Protocol
+- Large textarea (up to 15,000 chars) — "Processing Protocol"
+- Supports any project's rules — could be archival extraction rules, 
+  legal document review criteria, medical record indexing, anything
+- "Save Protocol" button → writes to protocolRegistry[activeProject]
+  and broadcasts update to INTELLIGENCE_BUS
+- Shows last saved timestamp
+- "Load Template" dropdown with built-in templates:
+    Archival Diary Extraction
+    Correspondence Indexing
+    News Clipping Archive
+    Photograph Cataloguing
+    Legal Document Review
+    Military Records
+    Church Records
+    Custom (blank)
+
+### Built-in Machen Protocol
+When Machen Family Papers project is active, pre-fill protocol with:
+
+"""
+MACHEN FAMILY PAPERS — DIARY PROCESSING PROTOCOL V.3
+Compiled by Lyndon W. Cook, Hendersonville, Tennessee, May 2026.
+
+SOURCE DESIGNATION: The Minnie Gresham Machen daily diary is a HEADLINE 
+SOURCE. Voice-category extractions preserve direct quotation of Minnie's 
+actual prose with sufficient context to be comprehensible without the source.
+
+SOURCE HIERARCHY:
+- Level 2 (Canonical): Typescript transcription. THE CANONICAL SOURCE.
+- Level 3 (Working): OCR-scanned digital version. One degree removed.
+  Subject to OCR errors the typescript does not contain.
+- Master Transcript: Project owner's clean corrected version.
+- No holograph diary volumes extant. Verification = OCR-correction-
+  against-master-transcript, NOT holograph-verification.
+
+THREE-PASS WORKFLOW:
+
+PASS 1 — COVERAGE VERIFICATION:
+Day-by-day verification the typescript covers the calendar year. Track 
+across upload batches. Identify: missing days, duplicate-with-mis-dating 
+sections, missing date headers, brief entries. Day-of-week verification 
+is the standard tool for date-header ambiguity. Produce coverage report 
+by month with cumulative-coverage statement.
+
+PASS 2 — OCR / ANOMALIES CATALOG:
+Category 1 — Probable OCR errors (rn/m, cl/d, ff/pf confusion, broken 
+  words at line breaks). Known corrections: Posher's→Posner's; 
+  Beney. Soc.→Benev. Soc.; Hambelton→Hambleton; Mt. Roland→Mt. Royal; 
+  Brook Bird→Brooke Bird; Von Kappf→Von Kapff
+Category 2 — Multi-word confusion. Roland/Rowland/Royal triple confusion 
+  is a documented recurring Baltimore-area pattern — flag all three when 
+  any appears. Verify all three.
+Category 3 — Name and term ambiguities. Flag for verification.
+Category 4 — Substantive lacunae. Shorthand passages → preserve as 
+  Provenance rows. Pattern: Minnie used shorthand for private content.
+Category 5 — Coverage gaps (cross-reference Pass 1)
+Category 6 — Period usages preserved as authentic (do NOT modernize):
+  "Telegram" (Rowland Multiplex device), "type-written" (period 
+  hyphenation), "Indian Ter." (1902 abbrev), "Aunty" (family naming), 
+  "wheel-ride" (period bicycle usage)
+Category 7 — Substantive content flags for Register attention
+
+STANDARDIZATION vs PRESERVATION:
+STANDARDIZE: OCR introduced corruption the typescript itself does not 
+  contain.
+PRESERVE: Typescript reads the word as Minnie actually wrote it.
+Ambiguous cases → flagged for project-owner resolution.
+
+PASS 3 — REGISTER EXTRACTION:
+Build Register row blocks at day-and-event level. One entry = 0–8 rows 
+depending on content density. Apply donee-locator priority to shape 
+extraction granularity. Voice rows = direct quotation, never paraphrase.
+
+DONEE-LOCATOR PRIORITY:
+Category A (Highest — LOC mss86777): Minnie's own voice, Loy Gresham 
+  references (every mention), Generation II Gresham-side family network, 
+  Arthur Sr. daily life and legal practice
+Category B (High — Westminster): J. Gresham Machen biographical material 
+  (every activity, decision, illness, social engagement), ecclesiastical 
+  and theological trajectory, 1925–1928 Princeton Seminary controversies
+Category C (High — Princeton/Wilson): Wilson dinner attendance, October 
+  1902 Princeton presidential inauguration, Wilson and Patton references, 
+  1894 Wilson holograph acceptance letter context
+Category D (Standard): General biographical material
+Category E (Specialized): Hopkins University Special Collections; 
+  Mrs. Rowland connection; Confederate Bazaar Georgia Table; 
+  Phinizy/Augusta GA connection; Mrs. Burton late-life 1925–1928
+
+DONEE SEQUENCING PRIORITY:
+Tier 1: 1899-1901; 1928-1925 (reverse); 1913
+Tier 2: 1894-1898; 1914-1916; 1917-1924
+Tier 3: 1890-1893; 1903-1912
+Prototype: 1902
+
+CITATION CONVENTIONS:
+Standard: "Minnie diary [year], [date] entry"
+Multi-day: "Minnie diary [year], [date] entry ([event anchor])"
+Donee-anchored: "[citation] (strengthens [Westminster/Princeton-Wilson/
+  Hopkins/LOC] case)"
+First-order: "Anderson, The Sharples-Sharpless Family, entry 9024"
+Second-order: "[source] (via Suppl. A § 1)" or "(via Master Doc v.2)"
+Project synthesis: cite "Project synthesis."
+
+VERSIONING BY ADDITION: Entries never deleted — superseded by clarifying 
+entries with explicit cross-reference.
+
+PHASE A SKIP: Do NOT do Master-Document-narrative back-extraction before 
+the typescript. Work is deferred to a single proper pass at first-order 
+primary source.
+"""
+
+### 2B. Item Schema (Layer 1)
+Pre-fill based on project type. For Machen:
+
+{
+  "item_id": "UUID (auto-assigned)",
+  "project_id": "string",
+  "source_year": "string",
+  "source_type": "diary_typescript | diary_ocr_scan | holograph_letter | typescript_letter | news_clipping | photograph | postcard | ephemera | other",
+  "pass_applied": "pass_1 | pass_2 | pass_3 | pass_1_and_2 | all_three",
+  "register_rows": [
+    {
+      "date": "string",
+      "person": "string (multiple: ' / ' separator)",
+      "category": "Vital | Residence | Education | Employment | Religion | Health | Travel | Relationship | Property | Cultural | Civic | Social | Voice | Provenance",
+      "fact": "string (self-contained; direct quote for Voice rows)",
+      "source": "string (citation with donee-anchor where applicable)"
+    }
+  ],
+  "donee_priority_categories": ["A","B","C","D","E"],
+  "headline_source_flag": "boolean",
+  "pass_1_coverage_report": "string or null",
+  "pass_2_anomalies": {
+    "category_1_ocr_errors": [],
+    "category_2_multiword_confusion": [],
+    "category_3_name_ambiguities": [],
+    "category_4_lacunae": [],
+    "category_6_period_usages_preserved": [],
+    "category_7_substantive_flags": []
+  },
+  "noteworthy_flag": "boolean",
+  "noteworthy_reason": "string or null",
+  "strengthens_case": [],
+  "people_extracted": [],
+  "places_extracted": [],
+  "dates_extracted": [],
+  "confidence_score": "high | medium | low",
+  "ocr_correction_notes": "string"
+}
+
+Generic schema template for other project types:
+
+{
+  "item_id": "UUID (auto-assigned)",
+  "project_id": "string",
+  "item_type": "string",
+  "date_on_item": "string or null",
+  "sender_or_author": "string or null",
+  "recipient_or_subject": "string or null",
+  "location": "string or null",
+  "people_mentioned": [],
+  "places_mentioned": [],
+  "organizations_mentioned": [],
+  "full_transcription": "string",
+  "subject_summary": "string",
+  "keywords": [],
+  "custom_fields": {},
+  "noteworthy_flag": "boolean",
+  "noteworthy_reason": "string or null",
+  "bibliography_entry": "string",
+  "protocol_notes": "string",
+  "confidence_score": "high | medium | low"
+}
+
+Save Schema button. Writes to schemaRegistry[activeProject].
+
+### 2C. Analysis Schema (Layer 2)
+Editable textarea. For Machen:
+
+{
+  "group_label": "string",
+  "year_file_name": "Biographical_Facts_Register_Diary_[year].docx",
+  "item_count": "number",
+  "register_row_count": "number",
+  "narrative_diary": "string — flowing chronological prose",
+  "key_events": [{"date":"","event":"","donee_relevance":""}],
+  "persons_directory": [{"name":"","role":"","priority_category":"","mentions":""}],
+  "places_directory": [{"place":"","context":"","mentions":""}],
+  "donee_summary": {
+    "LOC_mss86777_rows": 0,
+    "Westminster_rows": 0,
+    "Princeton_Wilson_rows": 0,
+    "Hopkins_rows": 0,
+    "other_rows": 0
+  },
+  "voice_rows": [],
+  "ocr_corrections_applied": [],
+  "period_usages_preserved": [],
+  "shorthand_lacunae": [],
+  "bibliography": [],
+  "archivist_summary": "string",
+  "gaps_and_unknowns": "string",
+  "cross_reference_notes": "string"
+}
+
+Generic analysis schema for other project types:
+
+{
+  "group_label": "string",
+  "group_criteria": "string",
+  "item_count": "number",
+  "date_range": "string",
+  "narrative_summary": "string",
+  "key_events": [],
+  "persons_directory": [],
+  "places_directory": [],
+  "themes": [],
+  "noteworthy_items": [],
+  "bibliography": [],
+  "archivist_summary": "string",
+  "gaps_and_unknowns": "string"
+}
+
+### 2D. Protocol + Schema Version Control
+- Every save creates a versioned snapshot: protocol_v1, protocol_v2, etc.
+- "View History" button shows all saved versions with timestamps
+- "Restore Version" button to roll back
+- Changes never delete prior versions (versioning by addition)
+
+===================================================
+## TAB 3 — PROCESS (LAYER 1)
+===================================================
+
+### Upload Zone
+- Drag-and-drop + click-to-browse
+- Accepts: JPG, JPEG, PNG, TIFF, WEBP, PDF
+- Max 20MB per file, 50 files per batch
+- Optional metadata fields per upload:
+    Year / Date (text)
+    Source Label (e.g. "1902 diary scan batch 1")
+    Notes (text)
+- Thumbnail grid: filename + status badge + year label
+  Queued / Processing / Done / Error / Needs Review
+
+### Controls
+- "Process All" button (requires protocol saved + files uploaded)
+- Progress: "Processing 7 of 43 — est. 4 min remaining"
+- Pause/Resume
+- Skip errored items, log them, continue batch
+
+### Processing Logic (backend /api/process)
+
+For each file:
+
+Step 1 — Ingest
+  Convert image to base64 with correct media_type
+  PDF → extract first page → convert to PNG → encode
+  Store raw file reference in INTELLIGENCE_BUS.itemStore
+
+Step 2 — Send to Claude
+
+  SYSTEM:
+  "You are ArchiveIQ, an expert archival document intelligence system. 
+  You are processing a document for PROJECT: [project name]. 
+  You apply the project's Processing Protocol exactly. You return ONLY 
+  valid JSON with no markdown, no code fences, no preamble whatsoever."
+
+  USER (image + text):
+  "Document image attached.
+  Project: [project name]
+  Project type: [type]
+  Source year / date: [if provided]
+  Source label: [if provided]
+
+  Processing Protocol (apply exactly):
+  [FULL SAVED PROTOCOL]
+
+  Output Schema (fill every field):
+  [FULL SAVED ITEM SCHEMA]
+
+  Instructions:
+  1. Identify the document type from the image
+  2. Apply every step of the Processing Protocol
+  3. For Machen project: apply all three passes; build register_rows at 
+     day-and-event granularity; Voice rows = direct quotation; apply 
+     donee-locator priority; append donee-anchor citations where 
+     substantively important
+  4. For any project: extract all people, places, dates, organizations 
+     into their arrays
+  5. Set noteworthy_flag = true for items of unusual historical significance
+  6. Assign confidence_score based on image legibility
+  7. Write bibliography_entry in Chicago citation style
+  8. Note all OCR corrections in ocr_correction_notes
+  9. Return ONLY the JSON. No other text."
+
+Step 3 — Parse + Validate
+  Parse JSON; assign UUID to item_id and project_id
+  Validate required fields
+  Retry once on parse failure
+  On second failure: save raw text, mark needs_review
+
+Step 4 — Update INTELLIGENCE_BUS
+  Push item to itemStore
+  Update patternLibrary with new people, places, dates, themes
+  Update crossProjectIndex across ALL projects
+  Log to sessionLog
+
+Step 5 — Generate per-item .docx
+  For Machen project:
+    FILE: Biographical_Facts_Register_Diary_[year]_[id].docx
+    HEADER: "Machen Family Papers — Biographical Facts Register"
+    Section 1: Coverage + Source metadata
+    Section 2: Pass 1 Coverage Report
+    Section 3: Pass 2 Anomalies Catalog (all 7 categories)
+    Section 4: REGISTER ROWS TABLE (Date | Person | Category | Fact | Source)
+      Voice rows: italic, indented
+      Donee-anchor citations: gold highlight
+    Section 5: Donee Summary (row counts by institution)
+    Section 6: Noteworthy Items (gold box if flagged)
+    Section 7: OCR Correction Notes
+    Footer: "Machen Family Papers | Schema v.4 | Protocol v.3 | 
+             Processed: [timestamp] | Lyndon W. Cook"
+
+  For any other project:
+    FILE: [project_name]_[item_type]_[date]_[id].docx
+    Section 1: Item Metadata Table
+    Section 2: Full Transcription
+    Section 3: People / Places / Organizations
+    Section 4: Subject Summary
+    Section 5: Keywords + Themes
+    Section 6: Bibliography Entry
+    Section 7: Protocol Notes
+    Section 8: Noteworthy flag + reason if set
+    Footer: "ArchiveIQ | [Project Name] | [timestamp]"
+
+  Save to /tmp/output/items/[filename].docx
+
+### Results Table
+Columns: # | Year | Type | People | Rows | Confidence | Status | Download
+"Download All Items ZIP" button
+
+===================================================
+## TAB 4 — ANALYZE (LAYER 2)
+===================================================
+Active once 3+ items processed. Shows live count:
+"[N] items ready · [N] Register rows · [N] people indexed"
+
+### Grouping Controls
+Preset dropdown (adapts to project type):
+  For Machen: By Diary Year | By Donee Priority | By Person |
+    By Tier (1/2/3) | By Strengthens-Case | By Category |
+    All Items Together
+  For any project: By Date/Year | By Author/Sender | By Recipient |
+    By Document Type | By Theme/Keyword | By Location |
+    By Noteworthy Only | All Items Together
+
+Custom criteria field:
+  "Describe any grouping or analysis focus in plain language..."
+
+Depth: Quick | Standard | Deep
+
+"Run Analysis" button
+
+### Analysis Logic (backend /api/analyze)
+
+For each group, send to Claude:
+
+  SYSTEM:
+  "You are ArchiveIQ's collection intelligence engine analyzing materials 
+  from PROJECT: [project name]. You synthesize across multiple processed 
+  documents to produce authoritative narrative, directory, and reference 
+  outputs. You write the narrative_diary / narrative_summary as flowing 
+  prose at the level of a published scholarly work. Return ONLY valid JSON."
+
+  USER:
+  "Analyzing [N] items from [project name], group: [group_label]
+  Criteria: [criteria]
+  
+  All item data:
+  [FULL JSON ARRAY OF ITEMS IN GROUP]
+
+  Analysis Schema:
+  [SAVED ANALYSIS SCHEMA]
+
+  Instructions:
+  1. Write narrative prose synthesizing all items chronologically — 
+     tell the human story across the documents at scholarly level
+  2. Build complete persons directory with roles and priority flags
+  3. Build places directory
+  4. For Machen: compile donee_summary row counts; identify all Voice 
+     rows; note cross-reference opportunities to prior Register findings
+  5. For any project: identify dominant themes; compile bibliography
+  6. Write archivist_summary suitable for presenting to an institution
+  7. Note all gaps, unknowns, and unresolved questions
+  8. Return ONLY the JSON."
+
+Generate group .docx:
+
+  For Machen:
+    FILE: Biographical_Facts_Register_[group_label].docx
+    Cover: [Group Label] | [Date Range] | [Row Count] Register Rows
+    Subtitle: "Machen Family Papers | Schema v.4 | Protocol v.3"
+    Section 1: Archivist Summary
+    Section 2: Narrative Diary (full chronological prose)
+    Section 3: Consolidated Register Table (Date|Person|Cat.|Fact|Source)
+    Section 4: Key Events
+    Section 5: Persons Directory (Name|Role|A/B/C/D/E|First Appears|Mentions)
+    Section 6: Places Directory
+    Section 7: Donee Summary Table (Institution|Rows|Key Evidence)
+    Section 8: OCR Corrections Applied
+    Section 9: Period Usages Preserved
+    Section 10: Shorthand Lacunae
+    Section 11: Coverage Gaps
+    Section 12: Bibliography (alphabetical)
+    Section 13: Gaps & Unknowns
+    Section 14: Cross-Reference Notes
+    Footer: "Biographical Facts Register | Machen Family Papers | 
+             Schema v.4 + Protocol v.3 | Lyndon W. Cook"
+
+  For any project:
+    FILE: [Project]_[group_label]_Analysis.docx
+    Section 1: Archivist Summary
+    Section 2: Narrative (flowing prose synthesis)
+    Section 3: Consolidated Item Table
+    Section 4: Key Events / Timeline
+    Section 5: Persons Directory
+    Section 6: Places Directory
+    Section 7: Themes
+    Section 8: Noteworthy Items
+    Section 9: Bibliography
+    Section 10: Gaps & Unknowns
+    Footer: "ArchiveIQ | [Project Name] | [timestamp]"
+
+Generate MASTER REPORT after all groups:
+
+  For Machen:
+    FILE: Machen_Family_Papers_Master_Register_[date].docx
+    Title Page: "The Cook Collection — Machen Family Papers"
+    "Complete Biographical Facts Register"
+    "Total Items: [N] | Total Rows: [N] | Date Range: [X–Y]"
+    "Compiled by Lyndon W. Cook, Hendersonville, Tennessee"
+    "Schema v.4 + Diary Processing Protocol v.3 | May 2026"
+    Section 1: Collection Executive Summary
+    Section 2: Register Statistics (rows by category, by donee priority)
+    Section 3: Donee Case Summary per Institution
+    Section 4: Master Narrative
+    Section 5: Complete Persons Index (alphabetical)
+    Section 6: Complete Places Index
+    Section 7: Master Register (all rows)
+    Section 8: All Voice Rows (headline-source quotations)
+    Section 9: All Noteworthy Items
+    Section 10: Master Bibliography
+    Section 11: OCR Corrections Master List
+    Section 12: Period Usages Preserved Master List
+    Section 13: Shorthand Lacunae Across Corpus
+    Section 14: Gaps and Unknowns
+
+  For any project:
+    FILE: [Project]_Master_Report_[date].docx
+    Title Page with project metadata
+    Section 1: Executive Summary
+    Section 2: Collection Statistics
+    Section 3: Master Narrative
+    Section 4: Complete Persons Index
+    Section 5: Complete Places Index
+    Section 6: Master Item Table
+    Section 7: Master Timeline
+    Section 8: Themes Across Collection
+    Section 9: All Noteworthy Items
+    Section 10: Master Bibliography
+
+  Save to /tmp/output/analysis/
+
+===================================================
+## TAB 5 — INTELLIGENCE
+===================================================
+This tab is the living brain of the platform — it surfaces patterns, 
+connections, and insights that emerge from the processed data. All 
+visualizations are generated from INTELLIGENCE_BUS in real time.
+
+### 5A. Pattern Dashboard
+Live cards showing (updates after every item processed):
+  - Total items across all projects
+  - Total extracted rows/facts
+  - Most frequently mentioned people (top 10 with counts)
+  - Most frequently mentioned places (top 10 with counts)
+  - Most active date ranges (bar visualization in HTML)
+  - Document type breakdown (pie/bar in HTML)
+  - Confidence score distribution
+  - Noteworthy item count and list
+
+### 5B. Person Intelligence
+Search box: "Search any person across all projects..."
+Returns:
+  - Every item mentioning that person
+  - Every project they appear in
+  - Date range of mentions
+  - Category breakdown of mentions
+  - All direct quotations (Voice rows) mentioning them
+  - Cross-project connections (same person in multiple projects)
+
+### 5C. Place Intelligence
+Same as Person Intelligence but for locations
+
+### 5D. Cross-Project Index
+Shows connections across ALL projects:
+  - People appearing in multiple projects
+  - Places appearing in multiple projects
+  - Thematic overlaps
+  - Date overlaps
+  "Ask a question across all projects" — free-text field that sends 
+  to Claude with the full cross-project index for synthesis
+
+### 5E. Timeline View
+HTML-rendered visual timeline of all extracted dates across the 
+active project. Clickable events that expand to show the Register 
+row or fact. Color-coded by donee priority category (for Machen) 
+or by document type (for other projects).
+
+### 5F. Ask ArchiveIQ
+Free-text question box. Sends to Claude with:
+  - The question
+  - The full INTELLIGENCE_BUS state (summarized to fit context)
+  - All relevant items from itemStore
+Claude answers as a senior archivist with full knowledge of the 
+processed collection. Answers include item_id citations.
+
+Examples:
+  "What do we know about Woodrow Wilson from these documents?"
+  "Which items most strongly support the Westminster case?"
+  "Summarize everything we know about J. Gresham Machen's 1902 year"
+  "What gaps exist in the 1895–1900 period?"
+
+===================================================
+## TAB 6 — EXPORT
+===================================================
+
+### 6A. Per-Item Documents
+Table: ID | Project | Year | Type | Rows | Confidence | Download
+Search + filter by project, year, type, confidence
+"Download Filtered Items ZIP" button
+
+### 6B. Analysis Reports
+Table: Group | Project | Items | Rows | Date | Download
+"Download All Analysis ZIP"
+
+### 6C. Master Reports
+One row per project showing master report
+"Download Master Report" (gold, prominent)
+"Download Everything ZIP" (all items + all analysis + all masters)
+
+### 6D. Data Exports
+"Export Item Store as JSON" — raw INTELLIGENCE_BUS.itemStore
+"Export Cross-Project Index as JSON"
+"Export Pattern Library as JSON"
+"Export All Rows as CSV" — flat table of every extracted row/fact
+"Export Timeline as CSV" — all dates and events
+
+### 6E. Custom Export Builder
+"Build a custom export..." — text field
+User describes what they want: "All Voice rows from Machen 1890–1910" 
+or "All items mentioning Woodrow Wilson as CSV"
+Sends to Claude → Claude builds the export from INTELLIGENCE_BUS
+
+===================================================
+## BACKEND ROUTES
+===================================================
+POST /api/projects/create
+POST /api/projects/set-active
+PUT  /api/projects/:id
+DELETE /api/projects/:id
+GET  /api/projects
+
+POST /api/setup/protocol
+POST /api/setup/schema
+POST /api/setup/analysis-schema
+GET  /api/setup/:projectId
+GET  /api/setup/history/:projectId
+
+POST /api/process
+GET  /api/items
+GET  /api/items/:projectId
+POST /api/items/search
+
+POST /api/analyze
+GET  /api/analysis
+GET  /api/analysis/:projectId
+
+GET  /api/intelligence/patterns
+GET  /api/intelligence/person/:name
+GET  /api/intelligence/place/:name
+GET  /api/intelligence/cross-project
+POST /api/intelligence/ask
+
+GET  /api/export/item/:id
+GET  /api/export/analysis/:id
+GET  /api/export/master/:projectId
+GET  /api/export/zip/:type
+GET  /api/export/csv/:type
+POST /api/export/custom
+
+GET  /api/status
+
+===================================================
+## SHARED INTELLIGENCE BUS — DETAILED SPEC
+===================================================
+
+All routes import and mutate a single module-level state object:
+
+const INTELLIGENCE_BUS = {
+  projects: {},
+  activeProject: null,
+  itemStore: [],
+  analysisStore: [],
+  patternLibrary: {
+    people: {},      // name → {count, projects, dates, items[]}
+    places: {},      // place → {count, projects, items[]}
+    themes: {},      // theme → {count, projects, items[]}
+    dates: {},       // year → {count, items[]}
+    categories: {}   // category → {count, items[]}
+  },
+  crossProjectIndex: {
+    sharedPeople: {},
+    sharedPlaces: {},
+    dateOverlaps: {},
+    thematicOverlaps: {}
+  },
+  sessionLog: [],
+  schemaRegistry: {},
+  protocolRegistry: {},
+  exportQueue: []
+};
+
+After EVERY item is processed:
+1. Push item to itemStore
+2. For each person in people_extracted: update patternLibrary.people
+3. For each place in places_extracted: update patternLibrary.places
+4. For each date in dates_extracted: update patternLibrary.dates
+5. For each keyword/theme: update patternLibrary.themes
+6. For each category in register_rows: update patternLibrary.categories
+7. Update crossProjectIndex with cross-project intersections
+8. Append to sessionLog: {timestamp, action, item_id, project_id}
+
+GET /api/status returns full INTELLIGENCE_BUS summary (counts, not 
+full data) for the live status bar.
+
+===================================================
+## ERROR HANDLING
+===================================================
+- Malformed JSON from Claude: retry once, save raw, flag needs_review
+- Unreadable image: skip, log, continue batch
+- API rate limit: auto-pause 5s, resume
+- Missing API key: setup modal on load with instructions
+- PDF conversion failure: skip, log, continue
+- Bus update failure: log error, do not halt processing
+- Always continue batch — never halt on single item error
+
+===================================================
+## ENVIRONMENT
+===================================================
+- ANTHROPIC_API_KEY in Replit Secrets only. Never hardcode.
+- Max file size: 20MB. Max batch: 50 files.
+- Process items sequentially with 1-second delay between Claude calls
+- Create on startup: /tmp/output/items/ and /tmp/output/analysis/
+- Pre-create Machen Family Papers project on first load
+- On startup log: "ArchiveIQ ready. Projects: [N]. Items in bus: [N]. 
+  API key: YES/NO"
+- favicon: a simple gold archive box icon (inline SVG in HTML head)
