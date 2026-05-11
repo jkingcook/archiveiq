@@ -27,14 +27,46 @@ type ProcessableFile =
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
-function parseJSON(raw: string): Record<string, unknown> | null {
+function parseJSON(raw: string, filename?: string): Record<string, unknown> | null {
+  // Strip code fences and trim
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+  const s = cleaned.indexOf("{");
+  const e = cleaned.lastIndexOf("}");
+
+  if (s === -1) {
+    logger.warn({ filename, rawLen: raw.length, rawHead: raw.substring(0, 200) }, "[parse] no JSON object found in response");
+    return null;
+  }
+
+  const candidate = e > s ? cleaned.substring(s, e + 1) : cleaned.substring(s);
+
   try {
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-    const s = cleaned.indexOf("{");
-    const e = cleaned.lastIndexOf("}");
-    if (s !== -1 && e !== -1) return JSON.parse(cleaned.substring(s, e + 1));
-    return JSON.parse(cleaned);
-  } catch { return null; }
+    return JSON.parse(candidate);
+  } catch (firstErr) {
+    logger.warn({ filename, err: String(firstErr), rawLen: raw.length, rawTail: raw.slice(-200) }, "[parse] JSON.parse failed — attempting truncation rescue");
+
+    // Truncation rescue: progressively close open braces/brackets
+    let rescued = candidate;
+    const opens = (rescued.match(/\{/g) || []).length - (rescued.match(/\}/g) || []).length;
+    const openArr = (rescued.match(/\[/g) || []).length - (rescued.match(/\]/g) || []).length;
+    // Close any open string first (if last char isn't " or } or ])
+    const lastChar = rescued.trimEnd().slice(-1);
+    if (lastChar !== '"' && lastChar !== "}" && lastChar !== "]" && lastChar !== ",") {
+      rescued += '"';
+    }
+    // Close arrays and objects
+    for (let i = 0; i < openArr; i++) rescued += "]";
+    for (let i = 0; i < opens; i++) rescued += "}";
+
+    try {
+      const result = JSON.parse(rescued);
+      logger.info({ filename, rescuedOpenBraces: opens, rescuedOpenArr: openArr }, "[parse] truncation rescue succeeded");
+      return result;
+    } catch (rescueErr) {
+      logger.error({ filename, firstErr: String(firstErr), rescueErr: String(rescueErr), rawLen: raw.length, rawHead: raw.substring(0, 400), rawTail: raw.slice(-400) }, "[parse] all JSON parse attempts failed");
+      return null;
+    }
+  }
 }
 
 function getTextChunks(text: string): string[] {
@@ -60,7 +92,13 @@ function getTextChunks(text: string): string[] {
   return [text];
 }
 
-async function callClaude(systemPrompt: string, userText: string, converted: ProcessableFile, maxTokens: number): Promise<string> {
+const MAX_TOKENS = 8096;
+
+async function callClaude(
+  systemPrompt: string,
+  userText: string,
+  converted: ProcessableFile,
+): Promise<{ text: string; stopReason: string; inputTokens: number; outputTokens: number }> {
   type Block =
     | { type: "text"; text: string }
     | { type: "image"; source: { type: "base64"; media_type: string; data: string } }
@@ -78,19 +116,56 @@ async function callClaude(systemPrompt: string, userText: string, converted: Pro
       { type: "text", text: userText },
     ];
   } else {
-    content = [{ type: "text", text: `Document: ${converted.filename}\n\n${converted.text}\n\n---\n\n${userText}` }];
+    // For text mode, put extracted text first, then instructions
+    content = [{ type: "text", text: `${userText}\n\n---EXTRACTED DOCUMENT TEXT---\n${converted.text}` }];
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const params: any = { model: "claude-sonnet-4-5", max_tokens: maxTokens, system: systemPrompt, messages: [{ role: "user", content }] };
+  const params: any = {
+    model: "claude-sonnet-4-5",
+    max_tokens: MAX_TOKENS,
+    system: systemPrompt,
+    messages: [{ role: "user", content }],
+  };
   if (converted.mode === "pdf-doc") params.betas = ["pdfs-2024-09-25"];
+
+  logger.info({
+    filename: converted.filename,
+    mode: converted.mode,
+    promptLen: userText.length,
+    textLen: converted.mode === "text" ? converted.text.length : 0,
+    max_tokens: MAX_TOKENS,
+  }, "[claude] sending request");
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const resp: any = converted.mode === "pdf-doc"
     ? await (client.beta as any).messages.create(params)
     : await client.messages.create(params);
 
-  return resp.content?.[0]?.type === "text" ? resp.content[0].text : "";
+  const text = resp.content?.[0]?.type === "text" ? (resp.content[0].text as string) : "";
+  const stopReason = (resp.stop_reason as string) ?? "end_turn";
+  const inputTokens = (resp.usage?.input_tokens as number) ?? 0;
+  const outputTokens = (resp.usage?.output_tokens as number) ?? 0;
+
+  logger.info({
+    filename: converted.filename,
+    stopReason,
+    inputTokens,
+    outputTokens,
+    responseLen: text.length,
+    responseTail: text.slice(-150),
+  }, "[claude] response received");
+
+  if (stopReason === "max_tokens") {
+    logger.error({
+      filename: converted.filename,
+      outputTokens,
+      max_tokens: MAX_TOKENS,
+      responseTail: text.slice(-300),
+    }, "[claude] RESPONSE TRUNCATED BY max_tokens — JSON will be incomplete");
+  }
+
+  return { text, stopReason, inputTokens, outputTokens };
 }
 
 function createNeedsReviewItem(projectId: string, filename: string, rawText: string): ArchiveItem {
@@ -174,25 +249,50 @@ ${isMachen ? "2. Apply all three passes; build register_rows at day-and-event gr
 6. Record OCR corrections in ocr_correction_notes
 7. Return ONLY the JSON object.`;
 
+  // Log what we're actually sending to Claude
+  logger.info({
+    filename,
+    projectId,
+    protocol_chars: protocol.length,
+    schema_chars: itemSchema.length,
+    protocol_preview: protocol.substring(0, 120),
+    mode: converted.mode,
+    text_chars: converted.mode === "text" ? converted.text.length : 0,
+    text_preview: converted.mode === "text" ? converted.text.substring(0, 300) : "N/A",
+    isMachen,
+  }, "[process] starting Claude call");
+
   // Determine chunks (only for text mode)
   const textChunks = converted.mode === "text" ? getTextChunks(converted.text) : [];
   const isMulti = textChunks.length > 1;
 
   if (!isMulti) {
     sendProgress(1, 1, 1, 1);
-    let raw = "";
+    let rawText = "";
+    let stopReason = "end_turn";
     let parsed: Record<string, unknown> | null = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        raw = await callClaude(system, baseUser, converted, 4000);
-        parsed = parseJSON(raw);
+        const result = await callClaude(system, baseUser, converted);
+        rawText = result.text;
+        stopReason = result.stopReason;
+        parsed = parseJSON(rawText, filename);
+        logger.info({ filename, attempt, parsed: parsed !== null, rowCount: (parsed?.register_rows as unknown[])?.length ?? 0, stopReason }, "[process] single-chunk parse result");
         if (parsed) break;
+        // If we hit max_tokens on attempt 0, no point retrying with same prompt
+        if (stopReason === "max_tokens") {
+          logger.warn({ filename }, "[process] max_tokens hit — rescue may apply, skipping retry");
+          break;
+        }
       } catch (e) {
-        logger.warn({ filename, attempt, err: String(e) }, "[process] call failed");
+        logger.warn({ filename, attempt, err: String(e) }, "[process] Claude call threw error");
         if (attempt === 0) await sleep(2000);
       }
     }
-    if (!parsed) return createNeedsReviewItem(projectId, filename, raw.substring(0, 500));
+    if (!parsed) {
+      logger.error({ filename, rawPreview: rawText.substring(0, 500), stopReason }, "[process] creating needs_review item — no valid JSON");
+      return createNeedsReviewItem(projectId, filename, rawText.substring(0, 1000));
+    }
     return finalizeItem(parsed, projectId, filename, isMachen, project, sourceYear);
   }
 
@@ -217,9 +317,11 @@ ${isMachen ? "2. Apply all three passes; build register_rows at day-and-event gr
     let parsed: Record<string, unknown> | null = null;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const raw = await callClaude(system, baseUser + suffix, chunkFile, 4000);
-        parsed = parseJSON(raw);
+        const result = await callClaude(system, baseUser + suffix, chunkFile);
+        parsed = parseJSON(result.text, filename);
+        logger.info({ filename, chunk: ci + 1, parsed: parsed !== null, stopReason: result.stopReason }, "[process] chunk parse result");
         if (parsed) break;
+        if (result.stopReason === "max_tokens") break;
       } catch (e) {
         logger.warn({ filename, chunk: ci + 1, attempt, err: String(e) }, "[process] chunk failed");
         if (attempt === 0) await sleep(2000);

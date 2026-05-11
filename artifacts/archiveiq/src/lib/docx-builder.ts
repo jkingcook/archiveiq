@@ -186,7 +186,7 @@ export async function buildMachenItemDocx(item: MachensItem, outPath: string): P
           children: [new Paragraph({
             children: [
               new TextRun({ text: "Machen Family Papers | Schema v.4 | Protocol v.3 | Processed: " + (item.processed_at ?? "") + " | Lyndon W. Cook", size: 16 }),
-              new TextRun({ children: [" | Page ", new PageNumber()], size: 16 }),
+              new TextRun({ children: [" | Page ", PageNumber.CURRENT], size: 16 }),
             ],
           })],
         }),
