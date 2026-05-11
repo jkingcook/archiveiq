@@ -141,6 +141,17 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#C9A84C;box-sh
 .version-list{display:flex;flex-direction:column;gap:6px;max-height:200px;overflow-y:auto}
 .version-item{background:#F0E8D8;border:1px solid #D4B896;border-radius:6px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;font-size:0.82rem}
 
+/* Preview Panel */
+.preview-section{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid #E8DBC8}
+.preview-section:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.preview-label{font-size:0.72rem;font-weight:700;color:#6B4E35;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px}
+.register-mini-table{width:100%;border-collapse:collapse;font-size:0.79rem}
+.register-mini-table th{background:#3D2B1F;color:#FAF7F0;padding:5px 8px;text-align:left;white-space:nowrap}
+.register-mini-table td{padding:5px 8px;border-bottom:1px solid #E8DBC8;vertical-align:top;max-width:240px;word-break:break-word}
+.register-mini-table tr:hover td{background:#FFF9E6}
+.json-collapse{background:#F0E8D8;border-radius:6px;padding:10px;font-size:0.72rem;font-family:monospace;max-height:220px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;border:1px solid #D4B896}
+.pill{display:inline-block;background:#E8DBC8;border-radius:12px;padding:2px 8px;margin:2px;font-size:0.77rem}
+
 /* Export table */
 .export-section{margin-bottom:24px}
 .export-section h3{font-family:Georgia,serif;font-size:0.95rem;margin-bottom:10px;color:#3D2B1F;border-bottom:1px solid #E8DBC8;padding-bottom:6px}
@@ -255,7 +266,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#C9A84C;box-sh
     <div id="drop-zone" onclick="document.getElementById('file-input').click()">
       <div style="font-size:2rem">📂</div>
       <strong>Drag &amp; drop files here, or click to browse</strong>
-      <p>Accepts any file type — JPG, PNG, PDF, SVG, DOCX, XLSX, PPTX, TXT, EML, and more · Max 50MB per file · Up to 50 files</p>
+      <p>Accepts any file type — JPG, PNG, PDF, SVG, DOCX, XLSX, PPTX, TXT, EML, ZIP, and more · No file size limits · No batch limits</p>
     </div>
     <input type="file" id="file-input" multiple accept="*/*" style="display:none" onchange="handleFiles(this.files)" />
 
@@ -289,14 +300,77 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#C9A84C;box-sh
   <!-- Results Table -->
   <div class="card">
     <div class="card-title">Processed Items</div>
-    <div id="items-table-wrap">
+    <div id="items-table-wrap" style="overflow-x:auto">
       <table class="data-table" id="items-table">
-        <thead><tr><th>#</th><th>Year</th><th>Type</th><th>People</th><th>Rows</th><th>Confidence</th><th>Status</th><th>Download</th></tr></thead>
+        <thead><tr><th>#</th><th>File</th><th>Year</th><th>Type</th><th>Rows</th><th>Chunks</th><th>Confidence</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="items-tbody"></tbody>
       </table>
     </div>
     <div style="margin-top:10px;display:flex;gap:8px">
       <button class="btn btn-secondary btn-sm" onclick="downloadZip('items')">📦 Download All Items ZIP</button>
+    </div>
+  </div>
+
+  <!-- Item Preview Panel -->
+  <div id="item-preview-panel" class="card" style="display:none;border:2px solid #C9A84C">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #C9A84C">
+      <h3 id="preview-title" style="font-family:Georgia,serif;color:#3D2B1F;font-size:1.05rem"></h3>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span id="preview-status-badge" class="status-badge"></span>
+        <button id="preview-retry-btn" class="btn btn-primary btn-sm" style="display:none" onclick="retryCurrentItem()">🔄 Retry</button>
+        <button id="pv-download-btn" class="btn btn-secondary btn-sm" style="display:none" onclick="downloadCurrentItem()">⬇ .docx</button>
+        <button class="btn btn-secondary btn-sm" onclick="closePreview()">✕ Close</button>
+      </div>
+    </div>
+
+    <!-- Stats strip -->
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;padding:10px 14px;background:#F0E8D8;border-radius:6px;font-size:0.81rem;color:#6B4E35">
+      <span id="pv-stat-words"></span>
+      <span id="pv-stat-rows"></span>
+      <span id="pv-stat-chunks"></span>
+      <span id="pv-stat-mode"></span>
+      <span id="pv-stat-conf"></span>
+    </div>
+
+    <!-- Register Rows -->
+    <div class="preview-section" id="pv-rows-section" style="display:none">
+      <div class="preview-label">Register Rows</div>
+      <div id="pv-rows-wrap" style="overflow-x:auto;max-height:320px;overflow-y:auto"></div>
+    </div>
+
+    <!-- Transcription -->
+    <div class="preview-section" id="pv-text-section" style="display:none">
+      <div class="preview-label">Extracted Text / Transcription</div>
+      <pre id="pv-raw-text" style="background:#F8F4EC;border:1px solid #D4B896;border-radius:6px;padding:12px;font-size:0.82rem;line-height:1.7;max-height:280px;overflow-y:auto;white-space:pre-wrap;font-family:Georgia,serif;word-break:break-word"></pre>
+    </div>
+
+    <!-- People / Places / Dates -->
+    <div class="preview-section">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+        <div><div class="preview-label">People</div><div id="pv-people"></div></div>
+        <div><div class="preview-label">Places</div><div id="pv-places"></div></div>
+        <div><div class="preview-label">Dates</div><div id="pv-dates"></div></div>
+      </div>
+    </div>
+
+    <!-- OCR Notes -->
+    <div class="preview-section" id="pv-ocr-section" style="display:none">
+      <div class="preview-label">OCR Corrections &amp; Notes</div>
+      <div id="pv-ocr-text" style="font-size:0.81rem;color:#3D2B1F;background:#FFF8E1;border:1px solid #FFE082;border-radius:6px;padding:10px;max-height:120px;overflow-y:auto"></div>
+    </div>
+
+    <!-- Noteworthy -->
+    <div class="preview-section" id="pv-noteworthy-section" style="display:none">
+      <div class="preview-label" style="color:#A07830">⭐ Noteworthy</div>
+      <div id="pv-noteworthy-text" style="font-size:0.82rem;color:#3D2B1F;background:#FFF3CD;border:1px solid #FFEEBA;border-radius:6px;padding:10px"></div>
+    </div>
+
+    <!-- Raw JSON -->
+    <div class="preview-section">
+      <div class="preview-label" style="cursor:pointer" onclick="toggleRawJson()">Raw JSON ▾ (click to expand)</div>
+      <div id="pv-raw-json" style="display:none;margin-top:6px">
+        <pre id="pv-json-content" class="json-collapse"></pre>
+      </div>
     </div>
   </div>
 </div>
@@ -856,7 +930,7 @@ async function processAll() {
   btn.textContent = '⏳ Processing...';
   el('proc-progress-wrap').style.display = '';
 
-  let done = 0;
+  let processed = 0;
   for (let i = 0; i < uploadedFiles.length; i++) {
     const file = uploadedFiles[i];
     const thumbStatus = el('thumb-status-' + i);
@@ -872,31 +946,50 @@ async function processAll() {
       formData.append('sourceLabel', el('proc-label').value);
       formData.append('notes', el('proc-notes').value);
 
-      const res = await fetch(BASE + '/process', { method:'POST', body: formData });
-      let data = {};
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
-        data = await res.json();
-      } else {
-        const text = await res.text();
-        console.error('Non-JSON response:', text.substring(0, 200));
-        data = { error: 'Server error: ' + text.substring(0, 100), items: [] };
-      }
-      if (!res.ok || data.error) {
-        if (thumbStatus) { thumbStatus.className = 'status-badge status-review'; thumbStatus.textContent = 'Review'; }
-        console.warn('Process warning for', file.name, ':', data.error);
-      } else {
-        if (thumbStatus) {
-          const item = data.items && data.items[0];
-          const needsReview = item && item.needs_review;
-          thumbStatus.className = 'status-badge ' + (needsReview ? 'status-review' : 'status-done');
-          thumbStatus.textContent = needsReview ? 'Review' : 'Done';
+      const res = await fetch(BASE + '/process', { method: 'POST', body: formData });
+      if (!res.body) throw new Error('No response body');
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let sseBuf = '';
+      let fileItems = [];
+
+      while (true) {
+        const { done: streamDone, value } = await reader.read();
+        if (streamDone) break;
+        sseBuf += decoder.decode(value, { stream: true });
+        const lines = sseBuf.split('\n');
+        sseBuf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const evt = JSON.parse(line.slice(6));
+            if (evt.type === 'progress') {
+              if (thumbStatus) {
+                thumbStatus.className = 'status-badge status-processing';
+                thumbStatus.textContent = `Pg ${evt.page}/${evt.totalPages}`;
+              }
+              el('proc-status-text').textContent = `${file.name} — chunk ${evt.chunk}/${evt.totalChunks}`;
+            } else if (evt.type === 'error') {
+              console.warn('[archiveiq]', evt.error);
+              if (thumbStatus) { thumbStatus.className = 'status-badge status-review'; thumbStatus.textContent = 'Review'; }
+            } else if (evt.type === 'done') {
+              fileItems = evt.items || [];
+            }
+          } catch(_) { /* skip malformed event */ }
         }
       }
-      if (data.items) { data.items.forEach(item => { if (!allItems.find(e => e.item_id === item.item_id)) allItems.push(item); }); }
-      done++;
+
+      const item = fileItems[0];
+      if (thumbStatus) {
+        const needsReview = item && item.needs_review;
+        thumbStatus.className = 'status-badge ' + (needsReview ? 'status-review' : 'status-done');
+        thumbStatus.textContent = needsReview ? 'Review' : 'Done';
+      }
+      fileItems.forEach(it => { if (!allItems.find(e => e.item_id === it.item_id)) allItems.push(it); });
+      processed++;
     } catch(e) {
-      console.error('Fetch error for', file.name, ':', e);
+      console.error('[archiveiq] fetch error:', file.name, e);
       if (thumbStatus) { thumbStatus.className = 'status-badge status-review'; thumbStatus.textContent = 'Review'; }
     }
     el('proc-progress-bar').style.width = Math.round(((i+1) / uploadedFiles.length) * 100) + '%';
@@ -905,7 +998,7 @@ async function processAll() {
   isProcessing = false;
   btn.disabled = false;
   btn.textContent = '⚡ Process All';
-  el('proc-status-text').textContent = `Done — ${done} processed`;
+  el('proc-status-text').textContent = `Done — ${processed} of ${uploadedFiles.length} processed`;
   renderItemsTable(allItems);
   refreshStatus();
 }
@@ -924,26 +1017,194 @@ function renderItemsTable(items) {
   const tbody = el('items-tbody');
   tbody.innerHTML = items.map((item, i) => {
     const rows = item.register_rows?.length ?? 0;
-    const people = (item.people_extracted || item.people_mentioned || []).slice(0,2).join(', ');
     const year = item.source_year || item.date_on_item || '';
     const type = item.source_type || item.item_type || '';
     const conf = item.confidence_score || '';
     const status = item.status || '';
+    const chunks = item.chunk_count ? `${item.chunk_count}` : '1';
+    const fname = item.filename || '';
+    const needsReview = item.needs_review;
     return `<tr>
       <td>${i+1}</td>
+      <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;font-size:0.77rem" title="${fname}">${fname}</td>
       <td>${year}</td>
-      <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis">${type}</td>
-      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${people}">${people}</td>
+      <td style="max-width:90px;overflow:hidden;text-overflow:ellipsis;font-size:0.8rem">${type}</td>
       <td>${rows}</td>
+      <td style="text-align:center;color:#6B4E35">${chunks}</td>
       <td><span class="status-badge ${conf==='high'?'status-done':conf==='medium'?'status-processing':'status-review'}">${conf}</span></td>
       <td><span class="status-badge ${status==='done'?'status-done':status==='needs_review'?'status-review':'status-queued'}">${status}</span></td>
-      <td>${item.docx_path ? `<button class="btn btn-secondary btn-sm" onclick="downloadItem('${item.item_id}')">⬇ .docx</button>` : '—'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-secondary btn-sm" onclick="previewItem('${item.item_id}')">🔍 Preview</button>
+        ${item.docx_path ? `<button class="btn btn-secondary btn-sm" onclick="downloadItem('${item.item_id}')">⬇</button>` : ''}
+        ${needsReview ? `<button class="btn btn-sm" style="background:#FFF3CD;color:#856404;border:1px solid #FFEEBA" onclick="retryItem('${item.item_id}')">🔄</button>` : ''}
+      </td>
     </tr>`;
-  }).join('') || '<tr><td colspan="8" style="text-align:center;color:#6B4E35;padding:20px">No items yet</td></tr>';
+  }).join('') || '<tr><td colspan="9" style="text-align:center;color:#6B4E35;padding:20px">No items yet</td></tr>';
 }
 
 function downloadItem(id) { window.open(BASE + '/export/item/' + id); }
 function downloadZip(type) { window.open(BASE + '/export/zip/' + type); }
+
+// ── Preview Panel ───────────────────────────────────────────────────────
+
+let currentPreviewItem = null;
+
+function previewItem(itemId) {
+  const item = allItems.find(i => i.item_id === itemId);
+  if (!item) return;
+  currentPreviewItem = item;
+
+  const panel = el('item-preview-panel');
+  panel.style.display = '';
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  // Title
+  const fname = item.filename || 'Unknown';
+  const year = item.source_year || item.date_on_item || '';
+  el('preview-title').textContent = fname + (year ? ' · ' + year : '');
+
+  // Status badge
+  const status = item.status || '';
+  const badge = el('preview-status-badge');
+  badge.className = 'status-badge ' + (status === 'done' ? 'status-done' : 'status-review');
+  badge.textContent = status.replace('_', ' ');
+
+  // Retry / download buttons
+  el('preview-retry-btn').style.display = item.needs_review ? '' : 'none';
+  el('pv-download-btn').style.display = item.docx_path ? '' : 'none';
+
+  // Stats strip
+  const rawText = item.raw_text || '';
+  const words = rawText.trim() ? rawText.trim().split(/\s+/).length : 0;
+  const chars = rawText.length;
+  const rows = item.register_rows?.length ?? 0;
+  const chunks = item.chunk_count || 1;
+  const conf = item.confidence_score || '';
+  el('pv-stat-words').textContent = chars > 0 ? `${chars.toLocaleString()} chars · ${words.toLocaleString()} words` : '';
+  el('pv-stat-rows').textContent = `${rows} register row${rows !== 1 ? 's' : ''}`;
+  el('pv-stat-chunks').textContent = chunks > 1 ? `${chunks} chunks processed` : '';
+  el('pv-stat-mode').textContent = item.file_mode ? `Mode: ${item.file_mode}` : '';
+  el('pv-stat-conf').textContent = conf ? `Confidence: ${conf}` : '';
+
+  // Register rows table
+  const rowsSec = el('pv-rows-section');
+  const rowsWrap = el('pv-rows-wrap');
+  if (rows > 0) {
+    rowsSec.style.display = '';
+    const cols = [...new Set(item.register_rows.flatMap(r => Object.keys(r)))];
+    rowsWrap.innerHTML = `<table class="register-mini-table">
+      <thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead>
+      <tbody>${item.register_rows.map(r =>
+        `<tr>${cols.map(c => `<td>${r[c] ?? ''}</td>`).join('')}</tr>`
+      ).join('')}</tbody>
+    </table>`;
+  } else { rowsSec.style.display = 'none'; }
+
+  // Transcription
+  const textSec = el('pv-text-section');
+  if (rawText) { textSec.style.display = ''; el('pv-raw-text').textContent = rawText; }
+  else { textSec.style.display = 'none'; }
+
+  // People / places / dates
+  const mkPills = arr => arr && arr.length > 0
+    ? arr.map(v => `<span class="pill">${v}</span>`).join('')
+    : '<em style="color:#A09080;font-size:0.8rem">None extracted</em>';
+  el('pv-people').innerHTML = mkPills(item.people_extracted || item.people_mentioned);
+  el('pv-places').innerHTML = mkPills(item.places_extracted || item.places_mentioned);
+  el('pv-dates').innerHTML = mkPills(item.dates_extracted || item.dates_mentioned);
+
+  // OCR
+  const ocrSec = el('pv-ocr-section');
+  const ocr = item.ocr_correction_notes || '';
+  if (ocr && ocr.trim() && !ocr.toLowerCase().startsWith('no ocr')) {
+    ocrSec.style.display = ''; el('pv-ocr-text').textContent = ocr;
+  } else { ocrSec.style.display = 'none'; }
+
+  // Noteworthy
+  const nwSec = el('pv-noteworthy-section');
+  if (item.noteworthy_flag && item.noteworthy_reason) {
+    nwSec.style.display = ''; el('pv-noteworthy-text').textContent = item.noteworthy_reason;
+  } else { nwSec.style.display = 'none'; }
+
+  // Raw JSON — reset collapsed
+  el('pv-raw-json').style.display = 'none';
+  el('pv-json-content').textContent = JSON.stringify(item, null, 2);
+}
+
+function closePreview() {
+  el('item-preview-panel').style.display = 'none';
+  currentPreviewItem = null;
+}
+
+function toggleRawJson() {
+  const div = el('pv-raw-json');
+  div.style.display = div.style.display === 'none' ? '' : 'none';
+}
+
+function downloadCurrentItem() {
+  if (currentPreviewItem) downloadItem(currentPreviewItem.item_id);
+}
+
+async function retryCurrentItem() {
+  if (!currentPreviewItem) return;
+  await retryItem(currentPreviewItem.item_id);
+}
+
+async function retryItem(itemId) {
+  const item = allItems.find(i => i.item_id === itemId);
+  if (!item) return;
+  const file = uploadedFiles.find(f => f.name === item.filename);
+  if (!file) {
+    alert('Original file is no longer in the upload queue.\nRe-upload the file and process again to retry.');
+    return;
+  }
+
+  const retryBtn = el('preview-retry-btn');
+  if (retryBtn) { retryBtn.disabled = true; retryBtn.textContent = '⏳ Retrying...'; }
+
+  const formData = new FormData();
+  formData.append('files', file);
+  formData.append('projectId', activeProjectId);
+  formData.append('sourceYear', el('proc-year').value);
+  formData.append('sourceLabel', el('proc-label').value);
+  formData.append('notes', el('proc-notes').value);
+
+  try {
+    const res = await fetch(BASE + '/process', { method: 'POST', body: formData });
+    if (!res.body) throw new Error('No body');
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let newItems = [];
+
+    while (true) {
+      const { done: sd, value } = await reader.read();
+      if (sd) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n'); buf = lines.pop() ?? '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const evt = JSON.parse(line.slice(6));
+          if (evt.type === 'progress' && retryBtn) retryBtn.textContent = `⏳ Chunk ${evt.chunk}/${evt.totalChunks}`;
+          if (evt.type === 'done') newItems = evt.items || [];
+        } catch(_) {}
+      }
+    }
+
+    if (newItems.length > 0) {
+      const idx = allItems.findIndex(i => i.item_id === itemId);
+      if (idx !== -1) allItems[idx] = newItems[0]; else allItems.push(newItems[0]);
+      renderItemsTable(allItems);
+      previewItem(newItems[0].item_id);
+    }
+  } catch(e) {
+    console.error('[archiveiq] retry error:', e);
+    alert('Retry failed: ' + e.message);
+  }
+
+  if (retryBtn) { retryBtn.disabled = false; retryBtn.textContent = '🔄 Retry'; }
+}
 
 // ── TAB 4: ANALYZE ─────────────────────────────────────────────────────
 async function loadAnalyze() {

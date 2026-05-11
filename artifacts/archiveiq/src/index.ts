@@ -13,7 +13,12 @@ if (Number.isNaN(port) || port <= 0) throw new Error(`Invalid PORT: "${rawPort}"
 
 const hasKey = !!process.env["ANTHROPIC_API_KEY"];
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   logger.info({ port }, "ArchiveIQ ready");
   logger.info(`API key: ${hasKey ? "YES" : "NO"}`);
 });
+
+// Disable all timeouts — large file processing can take many minutes
+server.keepAliveTimeout = 0;
+server.headersTimeout = 0;
+server.setTimeout(0);
