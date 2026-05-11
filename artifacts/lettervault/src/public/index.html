@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LetterVault Pro — LWC Archive</title>
+<style>
+  :root {
+    --cream: #FAF7F0;
+    --brown: #3D2B1F;
+    --gold: #C9A84C;
+    --gold-light: #F5EDD0;
+    --gold-dark: #A07830;
+    --green: #2D7A4F;
+    --red: #B03030;
+    --blue: #2A5F8F;
+    --gray: #8A7A6A;
+    --border: #DDD5C0;
+    --white: #FFFFFF;
+    --shadow: 0 2px 8px rgba(61,43,31,0.10);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--cream);
+    color: var(--brown);
+    font-family: system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+  }
+  header {
+    background: var(--brown);
+    color: var(--cream);
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  header h1 {
+    font-family: Georgia, serif;
+    font-size: 1.7rem;
+    letter-spacing: 0.02em;
+    color: var(--gold);
+  }
+  header .subtitle { font-size: 0.85rem; color: #C8B99A; }
+  #api-status {
+    font-size: 0.8rem;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-weight: 600;
+  }
+  #api-status.ok { background: var(--green); color: #fff; }
+  #api-status.missing { background: var(--red); color: #fff; }
+  .tab-bar {
+    background: #2E1E13;
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+  }
+  .tab-btn {
+    padding: 14px 28px;
+    background: none;
+    border: none;
+    color: #C8B99A;
+    font-size: 0.95rem;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+    font-family: Georgia, serif;
+    transition: all 0.2s;
+  }
+  .tab-btn:hover { color: var(--gold); }
+  .tab-btn.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+    background: rgba(201,168,76,0.08);
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  main { padding: 32px; max-width: 1100px; margin: 0 auto; }
+  h2 { font-family: Georgia, serif; font-size: 1.35rem; color: var(--brown); margin-bottom: 16px; }
+  h3 { font-family: Georgia, serif; font-size: 1.1rem; color: var(--brown); margin-bottom: 10px; margin-top: 24px; }
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow);
+  }
+  label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 6px; color: var(--brown); }
+  textarea, input[type=text], select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 0.85rem;
+    background: var(--cream);
+    color: var(--brown);
+    resize: vertical;
+  }
+  textarea:focus, input:focus, select:focus {
+    outline: 2px solid var(--gold);
+    outline-offset: 1px;
+  }
+  .btn {
+    display: inline-block;
+    padding: 10px 22px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s;
+    font-family: Georgia, serif;
+  }
+  .btn-gold { background: var(--gold); color: var(--brown); }
+  .btn-gold:hover { background: var(--gold-dark); color: #fff; }
+  .btn-brown { background: var(--brown); color: var(--cream); }
+  .btn-brown:hover { background: #5A3E2B; }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-green:hover { background: #1e5c39; }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-red:hover { background: #8a2020; }
+  .btn-outline {
+    background: transparent;
+    border: 2px solid var(--gold);
+    color: var(--gold-dark);
+  }
+  .btn-outline:hover { background: var(--gold-light); }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .banner {
+    padding: 10px 18px;
+    border-radius: 6px;
+    margin: 10px 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    display: none;
+  }
+  .banner.success { background: #D4EDDA; color: #155724; border: 1px solid #C3E6CB; }
+  .banner.error { background: #F8D7DA; color: #721C24; border: 1px solid #F5C6CB; }
+  .banner.info { background: var(--gold-light); color: var(--gold-dark); border: 1px solid var(--gold); }
+  .banner.show { display: block; }
+
+  #drop-zone {
+    border: 2px dashed var(--gold);
+    border-radius: 8px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    background: var(--gold-light);
+    transition: all 0.2s;
+    margin-bottom: 16px;
+  }
+  #drop-zone:hover, #drop-zone.drag-over {
+    background: #EEE0B0;
+    border-color: var(--gold-dark);
+  }
+  #drop-zone .drop-icon { font-size: 2.5rem; margin-bottom: 8px; }
+  #drop-zone p { color: var(--gray); font-size: 0.9rem; }
+  #drop-zone strong { color: var(--brown); }
+  #file-input { display: none; }
+
+  #file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .file-thumb {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px;
+    background: var(--white);
+    text-align: center;
+    font-size: 0.78rem;
+    position: relative;
+  }
+  .file-thumb .thumb-name {
+    font-weight: 600;
+    word-break: break-all;
+    margin-bottom: 6px;
+    color: var(--brown);
+  }
+  .status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+  .badge-queued { background: #E0E0E0; color: #555; }
+  .badge-processing { background: #D0E4F7; color: var(--blue); }
+  .badge-done { background: #D4EDDA; color: var(--green); }
+  .badge-error { background: #F8D7DA; color: var(--red); }
+  .badge-review { background: #FFF3CD; color: #856404; }
+
+  .progress-wrap { margin: 16px 0; }
+  .progress-bar-bg {
+    background: var(--border);
+    border-radius: 8px;
+    height: 14px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    background: var(--gold);
+    height: 100%;
+    width: 0%;
+    transition: width 0.4s ease;
+    border-radius: 8px;
+  }
+  .progress-label { font-size: 0.85rem; color: var(--gray); margin-top: 6px; }
+
+  .results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    margin-top: 16px;
+  }
+  .results-table th {
+    background: var(--brown);
+    color: var(--gold);
+    padding: 10px 12px;
+    text-align: left;
+    font-family: Georgia, serif;
+    font-size: 0.8rem;
+  }
+  .results-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .results-table tr:nth-child(even) { background: var(--cream); }
+  .results-table tr:hover { background: var(--gold-light); }
+  .noteworthy-star { color: var(--gold); font-size: 1.1rem; }
+
+  .controls-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 12px; }
+  .controls-row > * { flex: 1; min-width: 180px; }
+  .item-count-badge {
+    display: inline-block;
+    background: var(--gold);
+    color: var(--brown);
+    border-radius: 20px;
+    padding: 2px 12px;
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+
+  .export-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .export-row:last-child { border-bottom: none; }
+  .export-filename { font-weight: 600; font-size: 0.9rem; }
+  .export-meta { font-size: 0.8rem; color: var(--gray); margin-top: 2px; }
+
+  .group-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+    background: var(--white);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .group-card.done { border-left: 4px solid var(--green); }
+  .group-card.processing { border-left: 4px solid var(--blue); }
+  .group-card.error { border-left: 4px solid var(--red); }
+  .group-label-title { font-family: Georgia, serif; font-weight: 700; font-size: 1rem; }
+
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--gold-light);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #api-modal {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  #api-modal.show { display: flex; }
+  .modal-box {
+    background: var(--white);
+    border-radius: 12px;
+    padding: 36px;
+    max-width: 480px;
+    width: 90%;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  }
+  .modal-box h2 { font-family: Georgia, serif; color: var(--red); margin-bottom: 12px; }
+  .modal-box p { font-size: 0.9rem; color: var(--brown); margin-bottom: 10px; line-height: 1.6; }
+  .modal-box ol { margin-left: 20px; font-size: 0.9rem; color: var(--brown); line-height: 1.8; }
+  .modal-box .btn { margin-top: 18px; }
+
+  @media (max-width: 600px) {
+    main { padding: 16px; }
+    header { padding: 12px 16px; }
+    header h1 { font-size: 1.2rem; }
+    .tab-btn { padding: 10px 16px; font-size: 0.85rem; }
+  }
+</style>
+</head>
+<body>
+
+<div id="api-modal">
+  <div class="modal-box">
+    <h2>API Key Required</h2>
+    <p>LetterVault Pro requires an Anthropic API key to process archival items with Claude AI.</p>
+    <p>To set it up:</p>
+    <ol>
+      <li>Open the <strong>Secrets</strong> panel in Replit (lock icon in the sidebar)</li>
+      <li>Add a new secret with key: <code>ANTHROPIC_API_KEY</code></li>
+      <li>Paste your Anthropic API key as the value</li>
+      <li>Restart the application</li>
+    </ol>
+    <button class="btn btn-gold" onclick="document.getElementById('api-modal').classList.remove('show')">Dismiss</button>
+  </div>
+</div>
+
+<header>
+  <div>
+    <h1>LetterVault Pro</h1>
+    <div class="subtitle">Lyndon Watson Cook — Archival Document Processing System</div>
+  </div>
+  <span id="api-status">Checking...</span>
+</header>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('setup', this)">1. Setup</button>
+  <button class="tab-btn" onclick="switchTab('process', this)">2. Process Items</button>
+  <button class="tab-btn" onclick="switchTab('analyze', this)">3. Analyze Collection</button>
+  <button class="tab-btn" onclick="switchTab('exports', this)">4. All Exports</button>
+</div>
+
+<main>
+
+<!-- TAB 1: SETUP -->
+<div id="tab-setup" class="tab-content active">
+  <h2>Setup</h2>
+
+  <div class="card">
+    <h3>1A. Processing Protocol</h3>
+    <label for="protocol-input">Paste Your Item Processing Protocol (up to 10,000 characters)</label>
+    <textarea id="protocol-input" rows="10" maxlength="10000" placeholder="Describe how each archival item should be analyzed. For example:&#10;&#10;1. Identify the document type first&#10;2. Transcribe all text verbatim, preserving spelling and punctuation&#10;3. Note any stamps, postmarks, or official markings&#10;4. Flag items mentioning specific family members as noteworthy&#10;5. Pay special attention to dates and geographic locations..."></textarea>
+    <div style="margin-top:12px; display:flex; gap:10px; align-items:center;">
+      <button class="btn btn-green" onclick="saveProtocol()">Save Protocol</button>
+      <div id="protocol-banner" class="banner"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>1B. Item Schema (Layer 1)</h3>
+    <label for="item-schema-input">Editable JSON schema — each processed item will use this structure</label>
+    <textarea id="item-schema-input" rows="30"></textarea>
+    <div style="margin-top:12px; display:flex; gap:10px;">
+      <button class="btn btn-brown" onclick="saveItemSchema()">Save Schema</button>
+      <div id="item-schema-banner" class="banner"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>1C. Analysis Schema (Layer 2)</h3>
+    <label for="analysis-schema-input">Editable JSON schema — each group analysis will use this structure</label>
+    <textarea id="analysis-schema-input" rows="30"></textarea>
+    <div style="margin-top:12px; display:flex; gap:10px;">
+      <button class="btn btn-brown" onclick="saveAnalysisSchema()">Save Analysis Schema</button>
+      <div id="analysis-schema-banner" class="banner"></div>
+    </div>
+  </div>
+
+  <div class="card" style="border-color: var(--red);">
+    <h3 style="color: var(--red);">Clear Session</h3>
+    <p style="font-size:0.9rem; color: var(--gray); margin-bottom:12px;">Clears all processed items and deletes all generated files. This cannot be undone.</p>
+    <button class="btn btn-red" onclick="clearSession()">Clear Session &amp; Reset</button>
+    <div id="clear-banner" class="banner"></div>
+  </div>
+</div>
+
+<!-- TAB 2: PROCESS ITEMS -->
+<div id="tab-process" class="tab-content">
+  <h2>Process Items <span id="items-count-badge" class="item-count-badge" style="font-size:0.85rem; margin-left:10px;">0 items</span></h2>
+
+  <div class="card">
+    <h3>Upload Archival Images</h3>
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+      <div class="drop-icon">📂</div>
+      <strong>Drag &amp; drop files here or click to browse</strong>
+      <p>JPG, JPEG, PNG, TIFF, WEBP, PDF · Max 20MB per file · Max 50 files per batch</p>
+    </div>
+    <input type="file" id="file-input" multiple accept=".jpg,.jpeg,.png,.tiff,.tif,.webp,.pdf">
+    <div id="file-grid"></div>
+  </div>
+
+  <div class="card">
+    <h3>Controls</h3>
+    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:16px;">
+      <button class="btn btn-gold" id="process-btn" onclick="processAll()" disabled>Process All Items</button>
+      <button class="btn btn-outline" id="pause-btn" onclick="togglePause()" style="display:none;">Pause</button>
+    </div>
+    <div class="progress-wrap" id="progress-wrap" style="display:none;">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+      <div class="progress-label" id="progress-label">Ready</div>
+    </div>
+    <div id="process-banner" class="banner"></div>
+  </div>
+
+  <div class="card">
+    <h3>Results</h3>
+    <div id="results-container">
+      <p style="color: var(--gray); font-size:0.9rem;">No items processed yet.</p>
+    </div>
+    <div style="margin-top:16px;">
+      <button class="btn btn-outline" onclick="downloadZip('items')">Download All Items as ZIP</button>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 3: ANALYZE COLLECTION -->
+<div id="tab-analyze" class="tab-content">
+  <h2>Analyze Collection <span id="analyze-count-badge" class="item-count-badge" style="font-size:0.85rem; margin-left:10px;">0 items ready</span></h2>
+
+  <div id="analyze-locked" class="banner info show">
+    Process at least 1 item in Tab 2 before running collection analysis.
+  </div>
+
+  <div class="card">
+    <h3>Grouping Controls</h3>
+    <div class="controls-row">
+      <div>
+        <label for="grouping-select">Group Items By</label>
+        <select id="grouping-select">
+          <option value="year">By Year</option>
+          <option value="decade">By Decade</option>
+          <option value="sender">By Sender</option>
+          <option value="recipient">By Recipient</option>
+          <option value="type">By Item Type</option>
+          <option value="era">By Era Tag</option>
+          <option value="noteworthy">By Noteworthy Items Only</option>
+          <option value="all">All Items Together</option>
+        </select>
+      </div>
+      <div>
+        <label for="depth-select">Analysis Depth</label>
+        <select id="depth-select">
+          <option value="standard">Standard (3–5 pages)</option>
+          <option value="quick">Quick (1–2 pages)</option>
+          <option value="deep">Deep (full synthesis)</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label for="custom-criteria">Custom Focus (optional)</label>
+      <input type="text" id="custom-criteria" placeholder="e.g. 'Focus on wartime letters only' or 'Group by family branch'">
+    </div>
+    <button class="btn btn-gold" id="analyze-btn" onclick="runAnalysis()" disabled>Run Collection Analysis</button>
+    <div id="analyze-banner" class="banner" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="card" id="analysis-progress-card" style="display:none;">
+    <h3>Analysis Progress</h3>
+    <div id="group-cards-container"></div>
+    <div class="progress-wrap">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="analyze-progress-fill"></div></div>
+      <div class="progress-label" id="analyze-progress-label"></div>
+    </div>
+  </div>
+
+  <div class="card" id="analysis-results-card" style="display:none;">
+    <h3>Analysis Complete</h3>
+    <div id="analysis-results-container"></div>
+    <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn btn-gold" onclick="downloadAnalysisFile('MASTER_REPORT.docx')">Download Master Report</button>
+      <button class="btn btn-outline" onclick="downloadZip('analysis')">Download All Analysis ZIP</button>
+    </div>
+  </div>
+</div>
+
+<!-- TAB 4: EXPORTS -->
+<div id="tab-exports" class="tab-content">
+  <h2>All Exports</h2>
+
+  <div class="card">
+    <h3>Section A: Individual Item Documents</h3>
+    <div id="export-items-container">
+      <p style="color: var(--gray); font-size:0.9rem;">No items processed yet.</p>
+    </div>
+    <div style="margin-top:16px;">
+      <button class="btn btn-outline" onclick="downloadZip('items')">Download All Items as ZIP</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Section B: Collection Analysis Documents</h3>
+    <div id="export-analysis-container">
+      <p style="color: var(--gray); font-size:0.9rem;">No analysis documents yet.</p>
+    </div>
+    <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn btn-gold" onclick="downloadAnalysisFile('MASTER_REPORT.docx')">Download Master Report</button>
+      <button class="btn btn-outline" onclick="downloadZip('analysis')">Download All Analysis ZIP</button>
+      <button class="btn btn-brown" onclick="downloadZip('all')">Download Complete Archive ZIP</button>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<script>
+const BASE = '/api';
+let uploadedFiles = [];
+let processedItems = [];
+let isPaused = false;
+let isProcessing = false;
+
+async function init() {
+  try {
+    const res = await fetch(`${BASE}/lettervault/status`);
+    const data = await res.json();
+    const statusEl = document.getElementById('api-status');
+    if (data.api_key) {
+      statusEl.textContent = 'API Key: Active';
+      statusEl.className = 'ok';
+    } else {
+      statusEl.textContent = 'API Key: Missing';
+      statusEl.className = 'missing';
+      document.getElementById('api-modal').classList.add('show');
+    }
+    document.getElementById('item-schema-input').value = data.item_schema;
+    document.getElementById('analysis-schema-input').value = data.analysis_schema;
+    if (data.protocol) document.getElementById('protocol-input').value = data.protocol;
+    if (data.items_count > 0) {
+      const res2 = await fetch(`${BASE}/lettervault/items`);
+      const d2 = await res2.json();
+      processedItems = d2.items || [];
+      renderResults();
+      updateItemCounts();
+    }
+  } catch(e) {
+    console.error('Init error', e);
+  }
+}
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'exports') refreshExports();
+}
+
+function showBanner(id, msg, type='success', duration=4000) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = `banner ${type} show`;
+  if (duration) setTimeout(() => el.classList.remove('show'), duration);
+}
+
+async function saveProtocol() {
+  const val = document.getElementById('protocol-input').value.trim();
+  if (!val) { showBanner('protocol-banner', 'Protocol cannot be empty', 'error'); return; }
+  try {
+    const res = await fetch(`${BASE}/lettervault/save-protocol`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ protocol: val })
+    });
+    const d = await res.json();
+    if (d.success) showBanner('protocol-banner', 'Protocol saved successfully!', 'success');
+    else showBanner('protocol-banner', d.error || 'Failed to save', 'error');
+  } catch(e) { showBanner('protocol-banner', 'Network error', 'error'); }
+}
+
+async function saveItemSchema() {
+  const val = document.getElementById('item-schema-input').value.trim();
+  try { JSON.parse(val); } catch { showBanner('item-schema-banner', 'Invalid JSON', 'error'); return; }
+  try {
+    const res = await fetch(`${BASE}/lettervault/save-schema`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ schema: val })
+    });
+    const d = await res.json();
+    if (d.success) showBanner('item-schema-banner', 'Schema saved!', 'success');
+    else showBanner('item-schema-banner', d.error, 'error');
+  } catch { showBanner('item-schema-banner', 'Network error', 'error'); }
+}
+
+async function saveAnalysisSchema() {
+  const val = document.getElementById('analysis-schema-input').value.trim();
+  try { JSON.parse(val); } catch { showBanner('analysis-schema-banner', 'Invalid JSON', 'error'); return; }
+  try {
+    const res = await fetch(`${BASE}/lettervault/save-analysis-schema`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ schema: val })
+    });
+    const d = await res.json();
+    if (d.success) showBanner('analysis-schema-banner', 'Analysis schema saved!', 'success');
+    else showBanner('analysis-schema-banner', d.error, 'error');
+  } catch { showBanner('analysis-schema-banner', 'Network error', 'error'); }
+}
+
+async function clearSession() {
+  if (!confirm('Clear all items and files? This cannot be undone.')) return;
+  try {
+    const res = await fetch(`${BASE}/lettervault/clear-session`, { method: 'POST' });
+    const d = await res.json();
+    if (d.success) {
+      processedItems = [];
+      uploadedFiles = [];
+      document.getElementById('file-grid').innerHTML = '';
+      renderResults();
+      updateItemCounts();
+      showBanner('clear-banner', 'Session cleared successfully', 'success');
+    }
+  } catch { showBanner('clear-banner', 'Network error', 'error'); }
+}
+
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  addFiles(Array.from(e.dataTransfer.files));
+});
+fileInput.addEventListener('change', () => { addFiles(Array.from(fileInput.files)); fileInput.value = ''; });
+
+function addFiles(newFiles) {
+  newFiles.forEach(f => {
+    if (!uploadedFiles.find(x => x.name === f.name && x.size === f.size)) {
+      uploadedFiles.push(f);
+    }
+  });
+  renderFileGrid();
+  checkProcessBtn();
+}
+
+function renderFileGrid() {
+  const grid = document.getElementById('file-grid');
+  grid.innerHTML = uploadedFiles.map((f, i) => `
+    <div class="file-thumb" id="thumb-${i}">
+      <div class="thumb-name">${escHtml(f.name)}</div>
+      <span class="status-badge badge-queued">Queued</span>
+    </div>
+  `).join('');
+}
+
+function setFileStatus(i, status) {
+  const thumb = document.getElementById(`thumb-${i}`);
+  if (!thumb) return;
+  const labels = { queued: 'Queued', processing: 'Processing...', done: 'Done', error: 'Error', review: 'Review' };
+  const classes = { queued: 'badge-queued', processing: 'badge-processing', done: 'badge-done', error: 'badge-error', review: 'badge-review' };
+  const spinner = status === 'processing' ? '<span class="spinner"></span>' : '';
+  const badgeClass = classes[status] || 'badge-queued';
+  const badgeLabel = labels[status] || status;
+  thumb.querySelector('.status-badge').className = `status-badge ${badgeClass}`;
+  thumb.querySelector('.status-badge').innerHTML = `${spinner}${badgeLabel}`;
+}
+
+function checkProcessBtn() {
+  const btn = document.getElementById('process-btn');
+  btn.disabled = uploadedFiles.length === 0 || isProcessing;
+}
+
+async function processAll() {
+  if (isProcessing || uploadedFiles.length === 0) return;
+
+  isProcessing = true;
+  isPaused = false;
+  document.getElementById('process-btn').disabled = true;
+  document.getElementById('pause-btn').style.display = 'inline-block';
+  document.getElementById('pause-btn').textContent = 'Pause';
+  document.getElementById('progress-wrap').style.display = 'block';
+
+  const startTime = Date.now();
+  let timings = [];
+  const total = uploadedFiles.length;
+
+  for (let i = 0; i < uploadedFiles.length; i++) {
+    while (isPaused) await new Promise(r => setTimeout(r, 500));
+
+    const f = uploadedFiles[i];
+    setFileStatus(i, 'processing');
+
+    const pct = Math.round((i / total) * 100);
+    document.getElementById('progress-fill').style.width = pct + '%';
+
+    let eta = '';
+    if (timings.length > 0) {
+      const avg = timings.reduce((a, b) => a + b, 0) / timings.length;
+      const remaining = (total - i) * avg;
+      eta = ` · ~${Math.ceil(remaining)}s remaining`;
+    }
+    document.getElementById('progress-label').textContent = `Processing ${i + 1} of ${total} items${eta}`;
+
+    const itemStart = Date.now();
+    try {
+      const fd = new FormData();
+      fd.append('files', f);
+
+      const res = await fetch(`${BASE}/lettervault/process`, { method: 'POST', body: fd });
+      const data = await res.json();
+
+      if (data.success && data.items && data.items.length > 0) {
+        const item = data.items[0];
+        processedItems.push(item);
+        setFileStatus(i, item.needs_review ? 'review' : 'done');
+      } else {
+        setFileStatus(i, 'error');
+        showBanner('process-banner', data.error || 'Processing failed for one item', 'error', 3000);
+      }
+    } catch(e) {
+      setFileStatus(i, 'error');
+    }
+
+    timings.push((Date.now() - itemStart) / 1000);
+    if (timings.length > 10) timings.shift();
+    updateItemCounts();
+    renderResults();
+  }
+
+  document.getElementById('progress-fill').style.width = '100%';
+  document.getElementById('progress-label').textContent = `All ${total} items processed in ${Math.round((Date.now() - startTime)/1000)}s`;
+  document.getElementById('pause-btn').style.display = 'none';
+  isProcessing = false;
+  checkProcessBtn();
+  showBanner('process-banner', `Batch complete! ${processedItems.length} items in store.`, 'success', 6000);
+}
+
+function togglePause() {
+  isPaused = !isPaused;
+  document.getElementById('pause-btn').textContent = isPaused ? 'Resume' : 'Pause';
+}
+
+function updateItemCounts() {
+  const n = processedItems.length;
+  document.getElementById('items-count-badge').textContent = `${n} item${n === 1 ? '' : 's'}`;
+  document.getElementById('analyze-count-badge').textContent = `${n} item${n === 1 ? '' : 's'} ready`;
+  const locked = document.getElementById('analyze-locked');
+  const btn = document.getElementById('analyze-btn');
+  if (n >= 1) {
+    locked.classList.remove('show');
+    btn.disabled = false;
+  } else {
+    locked.classList.add('show');
+    btn.disabled = true;
+  }
+}
+
+function renderResults() {
+  const container = document.getElementById('results-container');
+  if (processedItems.length === 0) {
+    container.innerHTML = '<p style="color: var(--gray); font-size:0.9rem;">No items processed yet.</p>';
+    return;
+  }
+  const rows = processedItems.map((item, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${escHtml(item.filename || '')}</td>
+      <td>${escHtml(item.item_type || '—')}</td>
+      <td>${escHtml(item.date_on_item || '—')}</td>
+      <td>${escHtml(item.sender_name || '—')}</td>
+      <td>${item.noteworthy_flag ? '<span class="noteworthy-star" title="Noteworthy">⭐</span>' : '—'}</td>
+      <td><span class="status-badge ${item.confidence_score === 'high' ? 'badge-done' : item.confidence_score === 'low' ? 'badge-error' : 'badge-queued'}">${escHtml(item.confidence_score || '—')}</span></td>
+      <td>${item.needs_review ? '<span class="status-badge badge-review">Needs Review</span>' : `<button class="btn btn-outline" style="padding:4px 12px;font-size:0.78rem;" onclick="downloadItem('${item.item_id}')">Download</button>`}</td>
+    </tr>
+  `).join('');
+  container.innerHTML = `
+    <table class="results-table">
+      <thead><tr><th>#</th><th>Filename</th><th>Type</th><th>Date</th><th>Sender</th><th>Noteworthy</th><th>Confidence</th><th>Download</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+async function runAnalysis() {
+  if (processedItems.length === 0) return;
+  const grouping = document.getElementById('grouping-select').value;
+  const depth = document.getElementById('depth-select').value;
+  const customCriteria = document.getElementById('custom-criteria').value.trim();
+
+  document.getElementById('analyze-btn').disabled = true;
+  document.getElementById('analysis-progress-card').style.display = 'block';
+  document.getElementById('analysis-results-card').style.display = 'none';
+  document.getElementById('analyze-progress-fill').style.width = '10%';
+  document.getElementById('analyze-progress-label').textContent = 'Sending to Claude for analysis...';
+  document.getElementById('group-cards-container').innerHTML = '<p style="color:var(--gray);">Grouping items and running analysis...</p>';
+  showBanner('analyze-banner', '', 'info', 0);
+
+  try {
+    const res = await fetch(`${BASE}/lettervault/analyze`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ grouping, depth, customCriteria })
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      showBanner('analyze-banner', data.error || 'Analysis failed', 'error');
+      document.getElementById('analyze-btn').disabled = false;
+      return;
+    }
+
+    document.getElementById('analyze-progress-fill').style.width = '100%';
+    document.getElementById('analyze-progress-label').textContent = `Analysis complete — ${data.groups.length} group report${data.groups.length !== 1 ? 's' : ''} + 1 master report`;
+
+    const groupCards = data.groups.map(g => `
+      <div class="group-card done">
+        <div>
+          <div class="group-label-title">${escHtml(String(g.group_label || ''))}</div>
+          <div style="font-size:0.82rem; color:var(--gray);">${g.item_count} items · ${escHtml(String(g.date_range || ''))}</div>
+        </div>
+        <button class="btn btn-outline" style="padding:6px 14px; font-size:0.82rem;" onclick="downloadAnalysisFile('${encodeURIComponent(String(g.group_label || '').replace(/[^a-z0-9]/gi,'_'))}.docx')">Download</button>
+      </div>
+    `).join('');
+    document.getElementById('group-cards-container').innerHTML = groupCards;
+
+    const resultsHtml = data.groups.map(g => `
+      <div style="margin-bottom:12px; padding:12px; background:var(--cream); border-radius:6px; border:1px solid var(--border);">
+        <strong>${escHtml(String(g.group_label || ''))}</strong> — ${g.item_count} items<br>
+        <span style="font-size:0.85rem; color:var(--gray);">${escHtml(String(g.archivist_summary || '').slice(0,200))}${(g.archivist_summary || '').length > 200 ? '…' : ''}</span>
+      </div>
+    `).join('');
+    document.getElementById('analysis-results-container').innerHTML = resultsHtml;
+    document.getElementById('analysis-results-card').style.display = 'block';
+    showBanner('analyze-banner', `Analysis complete! ${data.groups.length} group reports and master report generated.`, 'success', 0);
+
+  } catch(e) {
+    showBanner('analyze-banner', 'Network error during analysis', 'error');
+  }
+  document.getElementById('analyze-btn').disabled = false;
+}
+
+async function refreshExports() {
+  const itemsEl = document.getElementById('export-items-container');
+  if (processedItems.length === 0) {
+    itemsEl.innerHTML = '<p style="color: var(--gray); font-size:0.9rem;">No items processed yet.</p>';
+  } else {
+    itemsEl.innerHTML = processedItems.map(item => `
+      <div class="export-row">
+        <div>
+          <div class="export-filename">${escHtml(item.item_id)}</div>
+          <div class="export-meta">${escHtml(item.item_type || '—')} · ${escHtml(item.date_on_item || '—')} · ${escHtml(item.sender_name || '—')}</div>
+        </div>
+        ${item.needs_review ? '<span class="status-badge badge-review">Needs Review</span>' : `<button class="btn btn-outline" style="padding:6px 14px; font-size:0.82rem;" onclick="downloadItem('${item.item_id}')">Download .docx</button>`}
+      </div>
+    `).join('');
+  }
+
+  try {
+    const res = await fetch(`${BASE}/lettervault/analysis-files`);
+    const data = await res.json();
+    const analysisEl = document.getElementById('export-analysis-container');
+    if (!data.files || data.files.length === 0) {
+      analysisEl.innerHTML = '<p style="color: var(--gray); font-size:0.9rem;">No analysis documents yet. Run collection analysis in Tab 3.</p>';
+    } else {
+      analysisEl.innerHTML = data.files.map(f => `
+        <div class="export-row">
+          <div>
+            <div class="export-filename">${escHtml(f)}</div>
+            <div class="export-meta">${f === 'MASTER_REPORT.docx' ? 'Master collection report' : 'Group analysis report'}</div>
+          </div>
+          <button class="btn ${f === 'MASTER_REPORT.docx' ? 'btn-gold' : 'btn-outline'}" style="padding:6px 14px; font-size:0.82rem;" onclick="downloadAnalysisFile('${encodeURIComponent(f)}')">Download .docx</button>
+        </div>
+      `).join('');
+    }
+  } catch {}
+}
+
+function downloadItem(itemId) {
+  window.open(`${BASE}/lettervault/download/item/${itemId}`, '_blank');
+}
+function downloadAnalysisFile(filename) {
+  window.open(`${BASE}/lettervault/download/analysis/${encodeURIComponent(filename)}`, '_blank');
+}
+function downloadZip(type) {
+  window.open(`${BASE}/lettervault/download-zip/${type}`, '_blank');
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+</body>
+</html>

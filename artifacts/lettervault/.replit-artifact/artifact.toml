@@ -1,0 +1,26 @@
+kind = "web"
+previewPath = "/"
+title = "LetterVault Pro"
+version = "1.0.0"
+id = "artifacts/lettervault"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20897
+
+[services.development]
+run = "pnpm --filter @workspace/lettervault run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/lettervault", "run", "build" ]
+run = "node --enable-source-maps artifacts/lettervault/dist/index.mjs"
+
+[services.env]
+PORT = "20897"
+BASE_PATH = "/"
