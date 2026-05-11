@@ -1,0 +1,180 @@
+CRITICAL FIX: Universal File Format Support for ArchiveIQ
+
+The app currently errors on PDFs and may fail on other formats. 
+Fix this completely so ArchiveIQ can accept and process ANY file 
+type with zero limitations. Here is exactly what to implement:
+
+===================================================
+STEP 1 — INSTALL ALL REQUIRED DEPENDENCIES
+===================================================
+Install these packages:
+- pdf-poppler OR pdftoppm (PDF to image conversion)
+- sharp (universal image processing and conversion)
+- pdf-parse (extract text directly from text-based PDFs)
+- mammoth (read .docx files as text)
+- xlsx (read Excel spreadsheets)
+- tesseract.js (OCR fallback for any image that needs it)
+- svg2img (SVG to PNG conversion)
+- libreoffice-convert OR officegen (Office format conversion)
+- node-poppler (PDF rendering)
+- canvas (image manipulation fallback)
+- file-type (auto-detect any file type by magic bytes)
+
+Also run these system installs in the Replit shell:
+  apt-get install -y poppler-utils
+  apt-get install -y imagemagick
+  apt-get install -y ghostscript
+  apt-get install -y libreoffice
+  apt-get install -y tesseract-ocr
+
+===================================================
+STEP 2 — BUILD A UNIVERSAL FILE CONVERTER
+===================================================
+Create a new file: src/utils/universalConverter.ts
+
+This module accepts ANY uploaded file and returns either:
+  - A base64 image (for Claude vision processing)
+  - Extracted text (for text-based processing)
+  - Both where possible
+
+Handle ALL of these input types:
+
+IMAGES (send directly to Claude vision):
+  .jpg .jpeg .png .webp .tiff .tif .bmp .gif .heic .heif .avif
+  → Convert any non-standard format to PNG via sharp
+  → Return base64 + media_type: image/png
+
+SVG:
+  .svg
+  → Convert to PNG via svg2img or sharp
+  → Return base64 + media_type: image/png
+
+PDF:
+  .pdf
+  → First attempt: extract text with pdf-parse
+  → If text extracted successfully AND length > 100 chars:
+       return extracted text directly (text-based PDF)
+  → If text is empty or too short (scanned PDF):
+       use poppler/pdftoppm to render EACH PAGE as PNG
+       return array of base64 images, one per page
+  → Process ALL pages, not just page 1
+
+MICROSOFT OFFICE:
+  .docx → extract text with mammoth
+  .doc  → convert via libreoffice then extract
+  .xlsx .xls → extract all cell data with xlsx library
+  .pptx .ppt → extract slide text via libreoffice + text extraction
+  → Return extracted text for Claude to process
+
+OPEN DOCUMENT:
+  .odt .ods .odp → convert via libreoffice → extract text
+
+TEXT FILES:
+  .txt .md .rtf .csv .tsv .json .xml .html
+  → Read as plain text
+  → Return text directly
+
+IMAGES IN ARCHIVES:
+  .zip .tar .gz
+  → Extract contents
+  → Process each file inside using the same universal converter
+  → Return array of results
+
+EMAIL FILES:
+  .eml .msg
+  → Extract body text + any attachments
+  → Process attachments through universal converter
+
+UNKNOWN TYPES:
+  → Detect type by magic bytes using file-type library
+  → Apply best-match conversion strategy above
+  → If nothing works: attempt raw text read
+  → Never return an error to the user — always return 
+    SOMETHING for Claude to attempt to process
+
+===================================================
+STEP 3 — UPDATE THE PROCESS ROUTE
+===================================================
+In the /api/process route:
+
+1. For each uploaded file, call universalConverter(filePath)
+2. If result is a single image → send to Claude vision as before
+3. If result is multiple images (multi-page PDF) → 
+   send EACH page to Claude separately, then merge all 
+   register_rows from all pages into one item result
+4. If result is extracted text → send to Claude as text 
+   (no image attachment) with instruction to process the 
+   text directly per the protocol
+5. If result is both text and image → send both to Claude
+
+Update the Claude API call to handle both modes:
+
+MODE A — Vision (image available):
+  Send image as base64 with text prompt
+
+MODE B — Text only (no image, text extracted):
+  SYSTEM: same as before
+  USER: "Document text extracted from file:
+  [EXTRACTED TEXT]
+  
+  Process this text exactly as if you were reading the 
+  original document. Apply the full protocol and schema."
+
+===================================================
+STEP 4 — UPDATE THE FRONTEND UPLOAD ZONE
+===================================================
+Change the upload zone to accept ALL file types:
+  accept="*/*"  (remove all file type restrictions)
+
+Update the accepted formats label to read:
+  "Accepts any file type — JPG, PNG, PDF, SVG, DOCX, XLSX, 
+   PPTX, TXT, EML, ZIP, and more · Max 50MB per file · Up to 50 files"
+
+Increase max file size from 20MB to 50MB throughout.
+
+Update the thumbnail display:
+  - Images: show image thumbnail
+  - PDFs: show PDF icon + page count once detected
+  - Office files: show file type icon + filename
+  - Text files: show text icon + filename
+  - Unknown: show generic file icon + filename
+
+===================================================
+STEP 5 — MULTI-PAGE HANDLING
+===================================================
+For files that produce multiple pages/images (PDFs, etc.):
+
+- Show in the thumbnail: "Document.pdf — 14 pages"
+- Process each page as a separate Claude call
+- Merge all results: combine all register_rows arrays
+- In the per-item .docx output, add a "Page [N]" label 
+  before each page's rows
+- Show in results table: "14 pages processed"
+
+===================================================
+STEP 6 — ERROR RECOVERY
+===================================================
+NEVER show a hard error for an unsupported file.
+Instead:
+  1. Try the primary conversion method
+  2. If it fails, try the fallback method  
+  3. If that fails, attempt raw text read
+  4. If everything fails, send the raw bytes description 
+     to Claude and ask it to describe what it can infer
+  5. Always produce SOME output — never zero rows
+
+Log every conversion attempt and its result to the 
+server console for debugging.
+
+===================================================
+STEP 7 — TEST AFTER BUILDING
+===================================================
+After implementing, test with:
+  1. A multi-page PDF → confirm all pages process
+  2. An SVG file → confirm it converts and processes
+  3. A .docx file → confirm text extraction works
+  4. A .jpg image → confirm it still works as before
+  5. A .zip with mixed files → confirm extraction works
+
+Fix any errors that appear in testing before finishing.
+Report what file types were successfully tested.

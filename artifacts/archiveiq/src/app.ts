@@ -1,8 +1,7 @@
-import express from "express";
+import express, { type Request, type Response, type NextFunction } from "express";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import pinoHttp from "pino-http";
-import multer from "multer";
 import { logger } from "./lib/logger.js";
 import projectsRouter from "./routes/projects.js";
 import setupRouter from "./routes/setup.js";
@@ -47,6 +46,13 @@ app.get(`${BASE}/{*path}`, (_req, res) => {
 
 app.get("/", (_req, res) => {
   res.redirect(BASE);
+});
+
+// Global JSON error handler — catches unhandled Express/multer errors
+// Must be defined after all routes
+app.use((err: Error & { status?: number }, _req: Request, res: Response, _next: NextFunction) => {
+  logger.error({ err: err.message, stack: err.stack }, "Unhandled Express error");
+  res.status(err.status ?? 500).json({ error: err.message ?? "Internal server error" });
 });
 
 export default app;

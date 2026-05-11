@@ -24,6 +24,9 @@ async function buildAll() {
     external: [
       "*.node",
       "sharp",
+      "pdf-parse",
+      "mammoth",
+      "xlsx",
       "better-sqlite3",
       "sqlite3",
       "canvas",
