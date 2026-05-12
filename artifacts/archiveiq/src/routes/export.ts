@@ -51,9 +51,9 @@ router.get("/master/:projectId", (req, res) => {
 
 router.get("/zip/:type", async (req, res) => {
   const { type } = req.params;
-  const { default: archiver } = await import("archiver");
-
-  const archive = new archiver.ZipArchive();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const archiverMod = (await import("archiver")) as any;
+  const archive = new archiverMod.ZipArchive();
   res.setHeader("Content-Type", "application/zip");
   res.setHeader("Content-Disposition", `attachment; filename="archiveiq_${type}_${Date.now()}.zip"`);
   archive.pipe(res);

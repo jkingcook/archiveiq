@@ -7,8 +7,14 @@ import { execFileSync } from "child_process";
 import { tmpdir } from "os";
 import { join } from "path";
 import { v4 as uuidv4 } from "uuid";
-import { BUS } from "../lib/intelligence-bus.js";
+import { BUS, updatePatternLibrary, isMachenProject } from "../lib/intelligence-bus.js";
+import { buildMachenItemDocx, buildGenericItemDocx } from "../lib/docx-builder.js";
+import type { MachensItem, ArchiveItem } from "../lib/intelligence-bus.js";
 import { logger } from "../lib/logger.js";
+
+// Ensure output dirs exist on startup
+mkdirSync("/tmp/output/items", { recursive: true });
+mkdirSync("/tmp/output/analysis", { recursive: true });
 
 const _require = createRequire(import.meta.url);
 const router = Router();
@@ -23,7 +29,6 @@ async function extractText(buffer: Buffer, filename: string): Promise<string> {
   const ext = (filename.split(".").pop() ?? "").toLowerCase();
 
   if (ext === "pdf") {
-    // pdf-parse v2: requires file:// URL — write buffer to tmp file, parse, clean up
     const tmpPath = join(tmpdir(), `aiq_${Date.now()}_${uuidv4().slice(0, 8)}.pdf`);
     try {
       writeFileSync(tmpPath, buffer);
@@ -46,7 +51,7 @@ async function extractText(buffer: Buffer, filename: string): Promise<string> {
     return buffer.toString("utf-8").trim();
   }
 
-  if (["docx"].includes(ext)) {
+  if (ext === "docx") {
     try {
       const mammoth = _require("mammoth");
       const result = await mammoth.extractRawText({ buffer });
@@ -166,7 +171,11 @@ async function callClaudeOnText(text: string, filename: string): Promise<Record<
 
 // ── Scanned PDF via pdftoppm ──────────────────────────────────────────────────
 
-async function callClaudeOnScannedPdf(buffer: Buffer, filename: string): Promise<Record<string, unknown>> {
+async function callClaudeOnScannedPdf(
+  buffer: Buffer,
+  filename: string,
+  onProgress?: (page: number, total: number) => void,
+): Promise<Record<string, unknown>> {
   const runId = `${Date.now()}_${uuidv4().slice(0, 8)}`;
   const pdfPath = join(tmpdir(), `aiq_scan_${runId}.pdf`);
   const pageDir = join(tmpdir(), `aiq_pages_${runId}`);
@@ -190,6 +199,8 @@ async function callClaudeOnScannedPdf(buffer: Buffer, filename: string): Promise
     let merged: Record<string, unknown> = {};
 
     for (let p = 0; p < pageFiles.length; p++) {
+      onProgress?.(p + 1, pageFiles.length);
+
       const pageBase64 = readFileSync(pageFiles[p]).toString("base64");
       const pageLabel = `${filename} (page ${p + 1})`;
       logger.info({ filename, page: p + 1, totalPages: pageFiles.length }, "[pdftoppm] sending page to Claude");
@@ -227,16 +238,18 @@ async function callClaudeOnScannedPdf(buffer: Buffer, filename: string): Promise
 
 // ── Claude call (router) ──────────────────────────────────────────────────────
 
-async function callClaude(buffer: Buffer, filename: string): Promise<Record<string, unknown>> {
+async function callClaude(
+  buffer: Buffer,
+  filename: string,
+  onProgress?: (page: number, total: number) => void,
+): Promise<Record<string, unknown>> {
   const ext = (filename.split(".").pop() ?? "").toLowerCase();
 
-  // Native image formats
   if (["jpg", "jpeg", "png", "gif", "webp"].includes(ext)) {
     const mediaType = (ext === "jpg" || ext === "jpeg") ? "image/jpeg" : `image/${ext}` as "image/png" | "image/gif" | "image/webp";
     return callClaudeOnImageBase64(buffer.toString("base64"), mediaType, filename);
   }
 
-  // PDF: try text extraction first; fall back to vision if scanned
   if (ext === "pdf") {
     const text = await extractText(buffer, filename);
     logger.info({ filename, textLen: text.length }, "[pdf] extraction result");
@@ -247,19 +260,37 @@ async function callClaude(buffer: Buffer, filename: string): Promise<Record<stri
     }
 
     logger.info({ filename, textLen: text.length }, "[pdf] scanned image PDF detected — falling back to pdftoppm");
-    return callClaudeOnScannedPdf(buffer, filename);
+    return callClaudeOnScannedPdf(buffer, filename, onProgress);
   }
 
-  // Text-based formats (txt, md, csv, docx, etc.)
   const text = await extractText(buffer, filename);
   if (!text) throw new Error(`Could not extract text from ${filename}`);
   return callClaudeOnText(text, filename);
 }
 
-// ── SSE route ─────────────────────────────────────────────────────────────────
+// ── Item docx builder (non-fatal) ─────────────────────────────────────────────
+
+async function buildItemDocx(item: Record<string, unknown>, projectId: string, itemId: string): Promise<string | undefined> {
+  try {
+    const safeName = String(item["filename"] ?? itemId).replace(/[^a-zA-Z0-9._-]/g, "_");
+    const outPath = `/tmp/output/items/${safeName}_${itemId.slice(0, 8)}.docx`;
+    if (isMachenProject(projectId)) {
+      await buildMachenItemDocx(item as unknown as MachensItem, outPath);
+    } else {
+      await buildGenericItemDocx(item as unknown as ArchiveItem, outPath);
+    }
+    logger.info({ itemId, outPath }, "[docx] item docx built");
+    return outPath;
+  } catch (e) {
+    logger.warn({ itemId, err: String(e) }, "[docx] item docx generation failed (non-fatal)");
+    return undefined;
+  }
+}
+
+// ── SSE process route ─────────────────────────────────────────────────────────
 
 router.post("/", upload.array("files"), async (req: Request, res: Response) => {
-  const { projectId } = req.body as Record<string, string>;
+  const { projectId, sourceYear, sourceLabel, notes } = req.body as Record<string, string>;
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -273,18 +304,18 @@ router.post("/", upload.array("files"), async (req: Request, res: Response) => {
 
   if (!projectId || !BUS.projects[projectId]) {
     send({ type: "error", error: "Valid projectId required" });
-    return res.end();
+    res.end(); return;
   }
 
   if (!process.env["ANTHROPIC_API_KEY"]) {
     send({ type: "error", error: "ANTHROPIC_API_KEY not set" });
-    return res.end();
+    res.end(); return;
   }
 
   const files = (req.files as Express.Multer.File[]) ?? [];
   if (files.length === 0) {
     send({ type: "error", error: "No files provided" });
-    return res.end();
+    res.end(); return;
   }
 
   const results: object[] = [];
@@ -296,26 +327,40 @@ router.post("/", upload.array("files"), async (req: Request, res: Response) => {
     send({ type: "progress", filename: file.originalname, chunk: 1, totalChunks: 1, page: 1, totalPages: 1 });
 
     try {
-      const parsed = await callClaude(file.buffer, file.originalname);
+      // Pass send callback so scanned PDFs emit per-page progress
+      const onProgress = (page: number, total: number) => {
+        send({ type: "progress", filename: file.originalname, chunk: page, totalChunks: total, page, totalPages: total });
+      };
+
+      const parsed = await callClaude(file.buffer, file.originalname, onProgress);
 
       const itemId = uuidv4();
-      const item = {
+      const item: Record<string, unknown> = {
         ...parsed,
         item_id: itemId,
         project_id: projectId,
         filename: file.originalname,
+        source_year: sourceYear || "",
+        source_label: sourceLabel || "",
+        notes: notes || "",
         processed_at: new Date().toISOString(),
         status: "done",
         needs_review: false,
       };
 
+      // Generate per-item docx (non-fatal)
+      const docxPath = await buildItemDocx(item, projectId, itemId);
+      if (docxPath) item["docx_path"] = docxPath;
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       BUS.itemStore.push(item as any);
-      results.push(item);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      updatePatternLibrary(item as any);
 
       const rowCount = (parsed["register_rows"] as unknown[])?.length ?? 0;
-      logger.info({ filename: file.originalname, itemId, rowCount }, "[process] item stored");
+      logger.info({ filename: file.originalname, itemId, rowCount, docxPath }, "[process] item stored");
 
+      results.push(item);
       send({ type: "file_done", filename: file.originalname, itemId, status: "done", needs_review: false });
 
     } catch (e) {
@@ -324,10 +369,11 @@ router.post("/", upload.array("files"), async (req: Request, res: Response) => {
       logger.error({ filename: file.originalname, err: String(e) }, "[process] file failed");
 
       const itemId = uuidv4();
-      const fallback = {
+      const fallback: Record<string, unknown> = {
         item_id: itemId,
         project_id: projectId,
         filename: file.originalname,
+        source_year: sourceYear || "",
         processed_at: new Date().toISOString(),
         status: "needs_review",
         needs_review: true,
@@ -342,7 +388,6 @@ router.post("/", upload.array("files"), async (req: Request, res: Response) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       BUS.itemStore.push(fallback as any);
       results.push(fallback);
-
       send({ type: "file_done", filename: file.originalname, itemId, status: "needs_review", needs_review: true });
     }
 
@@ -352,6 +397,19 @@ router.post("/", upload.array("files"), async (req: Request, res: Response) => {
   send({ type: "done", processed: results.length, errors, items: results });
   res.end();
 });
+
+// ── Items GET routes (mounted at /api/items and /api/process) ─────────────────
+
+router.get("/", (_req, res) => {
+  res.json({ items: BUS.itemStore });
+});
+
+router.get("/:projectId", (req, res) => {
+  const items = BUS.itemStore.filter(i => i.project_id === req.params.projectId);
+  res.json({ items });
+});
+
+// ── Error middleware ──────────────────────────────────────────────────────────
 
 router.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   logger.error({ err: err.message }, "[process] middleware error");
