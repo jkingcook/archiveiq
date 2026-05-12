@@ -191,6 +191,7 @@ async function callClaudeOnScannedPdf(
       .sort()
       .map(f => join(pageDir, f));
 
+    console.log('Pages found:', pageFiles.length);
     logger.info({ filename, pageCount: pageFiles.length }, "[pdftoppm] pages generated");
 
     if (pageFiles.length === 0) throw new Error("pdftoppm produced no PNG pages");
@@ -254,11 +255,14 @@ async function callClaude(
     const text = await extractText(buffer, filename);
     logger.info({ filename, textLen: text.length }, "[pdf] extraction result");
 
+    console.log('PDF text length:', text.length);
+
     if (text.length >= 50) {
       logger.info({ filename }, "[pdf] text-based PDF — sending as text");
       return callClaudeOnText(text, filename);
     }
 
+    console.log('Attempting pdftoppm...');
     logger.info({ filename, textLen: text.length }, "[pdf] scanned image PDF detected — falling back to pdftoppm");
     return callClaudeOnScannedPdf(buffer, filename, onProgress);
   }
