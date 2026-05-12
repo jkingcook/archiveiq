@@ -1,4 +1,7 @@
 import { createRequire } from "module";
+import { writeFileSync, unlinkSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { logger } from "./logger.js";
 
 const _require = createRequire(import.meta.url);
@@ -36,16 +39,24 @@ async function trySharpConvert(buffer: Buffer, filename: string): Promise<Buffer
 }
 
 async function tryPdfText(buffer: Buffer): Promise<{ text: string; pages: number } | null> {
+  // pdf-parse v2 requires file:// URL — write to tmp, parse, clean up
+  const tmpPath = join(tmpdir(), `aiq_conv_${Date.now()}.pdf`);
   try {
-    const pdfParse = _require("pdf-parse");
-    const data = await pdfParse(buffer);
-    if (data.text && data.text.trim().length > 100) {
-      return { text: data.text, pages: data.numpages ?? 1 };
+    writeFileSync(tmpPath, buffer);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { PDFParse, VerbosityLevel } = _require("pdf-parse") as any;
+    const parser = new PDFParse({ url: `file://${tmpPath}`, verbosity: VerbosityLevel.ERRORS });
+    const result = await parser.getText() as { text?: string; numpages?: number };
+    const text = result.text?.trim() ?? "";
+    if (text.length > 100) {
+      return { text, pages: result.numpages ?? 1 };
     }
     return null;
   } catch (e) {
     logger.warn({ err: String(e) }, "pdf-parse failed");
     return null;
+  } finally {
+    try { unlinkSync(tmpPath); } catch { /* ignore */ }
   }
 }
 
