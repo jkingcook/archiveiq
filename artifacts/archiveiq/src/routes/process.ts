@@ -255,15 +255,20 @@ async function callClaude(
     const text = await extractText(buffer, filename);
     logger.info({ filename, textLen: text.length }, "[pdf] extraction result");
 
-    console.log('PDF text length:', text.length);
+    const alphaCount = (text.match(/[a-zA-Z]/g) ?? []).length;
+    const alphaRatio = text.length > 0 ? alphaCount / text.length : 0;
+    const isRealText = text.length >= 200 && alphaRatio >= 0.3;
 
-    if (text.length >= 50) {
-      logger.info({ filename }, "[pdf] text-based PDF — sending as text");
+    console.log('PDF text length:', text.length);
+    console.log('Alpha ratio:', alphaRatio.toFixed(3), '— isRealText:', isRealText);
+
+    if (isRealText) {
+      logger.info({ filename, textLen: text.length, alphaRatio }, "[pdf] text-based PDF — sending as text");
       return callClaudeOnText(text, filename);
     }
 
     console.log('Attempting pdftoppm...');
-    logger.info({ filename, textLen: text.length }, "[pdf] scanned image PDF detected — falling back to pdftoppm");
+    logger.info({ filename, textLen: text.length, alphaRatio }, "[pdf] scanned/garbage PDF — falling back to pdftoppm");
     return callClaudeOnScannedPdf(buffer, filename, onProgress);
   }
 
