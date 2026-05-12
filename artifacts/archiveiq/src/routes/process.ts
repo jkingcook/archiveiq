@@ -2,10 +2,10 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import multer from "multer";
 import Anthropic from "@anthropic-ai/sdk";
 import { createRequire } from "module";
-import { writeFileSync, unlinkSync, mkdirSync, readdirSync, readFileSync, rmdirSync } from "fs";
-import { execFileSync } from "child_process";
+import { writeFileSync, unlinkSync, mkdirSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { PDFDocument } from "pdf-lib";
 import { v4 as uuidv4 } from "uuid";
 import { BUS, updatePatternLibrary, isMachenProject } from "../lib/intelligence-bus.js";
 import { buildMachenItemDocx, buildGenericItemDocx } from "../lib/docx-builder.js";
@@ -169,72 +169,81 @@ async function callClaudeOnText(text: string, filename: string): Promise<Record<
   return parseClaudeRaw(raw, filename);
 }
 
-// ── Scanned PDF via pdftoppm ──────────────────────────────────────────────────
+// ── Scanned PDF via pdf-lib + Claude native PDF document API ─────────────────
+// Pure JavaScript — no system binaries needed, works in dev and production.
 
-async function callClaudeOnScannedPdf(
+async function callClaudeOnPdfNative(
   buffer: Buffer,
   filename: string,
   onProgress?: (page: number, total: number) => void,
 ): Promise<Record<string, unknown>> {
-  const runId = `${Date.now()}_${uuidv4().slice(0, 8)}`;
-  const pdfPath = join(tmpdir(), `aiq_scan_${runId}.pdf`);
-  const pageDir = join(tmpdir(), `aiq_pages_${runId}`);
+  const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
+  const pageCount = pdfDoc.getPageCount();
 
-  mkdirSync(pageDir, { recursive: true });
-  writeFileSync(pdfPath, buffer);
+  console.log('Pages found:', pageCount);
+  logger.info({ filename, pageCount }, "[pdf-native] loaded PDF, splitting into per-page documents");
 
-  try {
-    execFileSync("pdftoppm", ["-r", "200", "-png", pdfPath, join(pageDir, "page")]);
+  if (pageCount === 0) throw new Error("PDF has no pages");
 
-    const pageFiles = readdirSync(pageDir)
-      .filter(f => f.endsWith(".png"))
-      .sort()
-      .map(f => join(pageDir, f));
+  const allRows: unknown[] = [];
+  let merged: Record<string, unknown> = {};
 
-    console.log('Pages found:', pageFiles.length);
-    logger.info({ filename, pageCount: pageFiles.length }, "[pdftoppm] pages generated");
+  for (let p = 0; p < pageCount; p++) {
+    onProgress?.(p + 1, pageCount);
 
-    if (pageFiles.length === 0) throw new Error("pdftoppm produced no PNG pages");
+    // Build a single-page PDF for this page
+    const singleDoc = await PDFDocument.create();
+    const [copiedPage] = await singleDoc.copyPages(pdfDoc, [p]);
+    singleDoc.addPage(copiedPage);
+    const pageBytes = await singleDoc.save();
+    const pageBase64 = Buffer.from(pageBytes).toString("base64");
 
-    const allRows: unknown[] = [];
-    let merged: Record<string, unknown> = {};
+    logger.info({ filename, page: p + 1, pageCount, pageSizeKB: Math.round(pageBytes.length / 1024) }, "[pdf-native] sending page to Claude");
 
-    for (let p = 0; p < pageFiles.length; p++) {
-      onProgress?.(p + 1, pageFiles.length);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const content: any[] = [
+      {
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: pageBase64 },
+      },
+      {
+        type: "text",
+        text: `Process this archival document page (page ${p + 1} of ${pageCount}) and return a JSON object with these exact fields:\n${SCHEMA}`,
+      },
+    ];
 
-      const pageBase64 = readFileSync(pageFiles[p]).toString("base64");
-      const pageLabel = `${filename} (page ${p + 1})`;
-      logger.info({ filename, page: p + 1, totalPages: pageFiles.length }, "[pdftoppm] sending page to Claude");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const resp: any = await client.messages.create({
+      model: "claude-sonnet-4-5",
+      max_tokens: 8096,
+      system: SYSTEM,
+      messages: [{ role: "user", content }],
+    });
 
-      const pageResult = await callClaudeOnImageBase64(pageBase64, "image/png", pageLabel);
-      const rows = (pageResult["register_rows"] as unknown[]) ?? [];
-      allRows.push(...rows);
+    const raw: string = resp.content?.[0]?.type === "text" ? (resp.content[0].text as string) : "";
+    logger.info({ filename, page: p + 1, stopReason: resp.stop_reason, outputTokens: resp.usage?.output_tokens }, "[pdf-native] page response received");
 
-      if (p === 0) {
-        merged = { ...pageResult };
-      } else {
-        const existingText = (merged["full_transcription"] as string) ?? "";
-        const newText = (pageResult["full_transcription"] as string) ?? "";
-        merged["full_transcription"] = existingText + (newText ? "\n" + newText : "");
-        merged["people_extracted"] = [...new Set([...(merged["people_extracted"] as string[] ?? []), ...(pageResult["people_extracted"] as string[] ?? [])])];
-        merged["places_extracted"] = [...new Set([...(merged["places_extracted"] as string[] ?? []), ...(pageResult["places_extracted"] as string[] ?? [])])];
-        merged["dates_extracted"] = [...new Set([...(merged["dates_extracted"] as string[] ?? []), ...(pageResult["dates_extracted"] as string[] ?? [])])];
-      }
+    const pageResult = parseClaudeRaw(raw, `${filename} (page ${p + 1})`);
+    const rows = (pageResult["register_rows"] as unknown[]) ?? [];
+    allRows.push(...rows);
 
-      if (p < pageFiles.length - 1) await sleep(1000);
+    if (p === 0) {
+      merged = { ...pageResult };
+    } else {
+      const existingText = (merged["full_transcription"] as string) ?? "";
+      const newText = (pageResult["full_transcription"] as string) ?? "";
+      merged["full_transcription"] = existingText + (newText ? "\n" + newText : "");
+      merged["people_extracted"] = [...new Set([...(merged["people_extracted"] as string[] ?? []), ...(pageResult["people_extracted"] as string[] ?? [])])];
+      merged["places_extracted"] = [...new Set([...(merged["places_extracted"] as string[] ?? []), ...(pageResult["places_extracted"] as string[] ?? [])])];
+      merged["dates_extracted"] = [...new Set([...(merged["dates_extracted"] as string[] ?? []), ...(pageResult["dates_extracted"] as string[] ?? [])])];
     }
 
-    merged["register_rows"] = allRows;
-    logger.info({ filename, totalRows: allRows.length, totalPages: pageFiles.length }, "[pdftoppm] merge complete");
-    return merged;
-
-  } finally {
-    try {
-      for (const f of readdirSync(pageDir)) unlinkSync(join(pageDir, f));
-      rmdirSync(pageDir);
-      unlinkSync(pdfPath);
-    } catch { /* ignore cleanup errors */ }
+    if (p < pageCount - 1) await sleep(1000);
   }
+
+  merged["register_rows"] = allRows;
+  logger.info({ filename, totalRows: allRows.length, pageCount }, "[pdf-native] merge complete");
+  return merged;
 }
 
 // ── Claude call (router) ──────────────────────────────────────────────────────
@@ -267,9 +276,9 @@ async function callClaude(
       return callClaudeOnText(text, filename);
     }
 
-    console.log('Attempting pdftoppm...');
-    logger.info({ filename, textLen: text.length, alphaRatio }, "[pdf] scanned/garbage PDF — falling back to pdftoppm");
-    return callClaudeOnScannedPdf(buffer, filename, onProgress);
+    console.log('Attempting pdf-lib native PDF split...');
+    logger.info({ filename, textLen: text.length, alphaRatio }, "[pdf] scanned/garbage PDF — falling back to pdf-lib native");
+    return callClaudeOnPdfNative(buffer, filename, onProgress);
   }
 
   const text = await extractText(buffer, filename);
