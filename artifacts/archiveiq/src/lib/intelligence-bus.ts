@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import { readFileSync, writeFileSync } from "fs";
 
 export interface RegisterRow {
   date: string;
@@ -326,6 +327,29 @@ export const BUS: IntelligenceBus = {
   protocolRegistry: {},
   exportQueue: [],
 };
+
+// ── Item store persistence ────────────────────────────────────────────────────
+
+const ITEMS_STORE_PATH = "/tmp/items-store.json";
+
+// Load saved items from disk on startup (runs once at module import time)
+try {
+  const raw = readFileSync(ITEMS_STORE_PATH, "utf-8");
+  const saved = JSON.parse(raw) as ArchiveItem[];
+  if (Array.isArray(saved)) {
+    BUS.itemStore = saved;
+  }
+} catch {
+  // File doesn't exist yet or is corrupt — start with empty store
+}
+
+export function saveItemStore(): void {
+  try {
+    writeFileSync(ITEMS_STORE_PATH, JSON.stringify(BUS.itemStore), "utf-8");
+  } catch {
+    // Non-fatal — in-memory store still works
+  }
+}
 
 function initMachenProject(): void {
   const p: Project = {

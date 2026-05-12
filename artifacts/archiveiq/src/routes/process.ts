@@ -7,7 +7,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { PDFDocument } from "pdf-lib";
 import { v4 as uuidv4 } from "uuid";
-import { BUS, updatePatternLibrary, isMachenProject } from "../lib/intelligence-bus.js";
+import { BUS, updatePatternLibrary, isMachenProject, saveItemStore } from "../lib/intelligence-bus.js";
 import { buildMachenItemDocx, buildGenericItemDocx } from "../lib/docx-builder.js";
 import type { MachensItem, ArchiveItem } from "../lib/intelligence-bus.js";
 import { logger } from "../lib/logger.js";
@@ -372,6 +372,7 @@ router.post("/", upload.array("files"), async (req: Request, res: Response) => {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       BUS.itemStore.push(item as any);
+      saveItemStore();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       updatePatternLibrary(item as any);
 
@@ -405,6 +406,7 @@ router.post("/", upload.array("files"), async (req: Request, res: Response) => {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       BUS.itemStore.push(fallback as any);
+      saveItemStore();
       results.push(fallback);
       send({ type: "file_done", filename: file.originalname, itemId, status: "needs_review", needs_review: true });
     }

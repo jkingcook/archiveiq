@@ -884,9 +884,7 @@ dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.
 
 function handleFiles(files) {
   for (const f of files) {
-    if (!uploadedFiles.find(u => u.name === f.name && u.size === f.size)) {
-      uploadedFiles.push(f);
-    }
+    uploadedFiles.push(f);
   }
   renderThumbs();
   el('process-all-btn').disabled = uploadedFiles.length === 0 || !activeProjectId;
