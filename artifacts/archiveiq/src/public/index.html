@@ -999,7 +999,10 @@ async function processAll() {
   btn.disabled = false;
   btn.textContent = '⚡ Process All';
   el('proc-status-text').textContent = `Done — ${processed} of ${uploadedFiles.length} processed`;
-  renderItemsTable(allItems);
+
+  // Always reload items from server — this is the authoritative source
+  // and handles cases where the SSE stream ended before the 'done' event arrived
+  await loadItems();
   refreshStatus();
 }
 
