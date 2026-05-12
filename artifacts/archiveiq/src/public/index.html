@@ -306,8 +306,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#C9A84C;box-sh
         <tbody id="items-tbody"></tbody>
       </table>
     </div>
-    <div style="margin-top:10px;display:flex;gap:8px">
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
       <button class="btn btn-secondary btn-sm" onclick="downloadZip('items')">📦 Download All Items ZIP</button>
+      <button class="btn btn-secondary btn-sm" onclick="saveSessionAsText()" title="Save all items as a plain text file — ideal for dragging into Claude">💾 Save as Text (for Claude)</button>
+      <button class="btn btn-secondary btn-sm" onclick="saveSessionAsJSON()" title="Save all items as JSON">📥 Save as JSON</button>
     </div>
   </div>
 
@@ -1042,6 +1044,77 @@ function renderItemsTable(items) {
 
 function downloadItem(id) { window.open(BASE + '/export/item/' + id); }
 function downloadZip(type) { window.open(BASE + '/export/zip/' + type); }
+
+function triggerDownload(filename, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+function saveSessionAsText() {
+  if (!allItems.length) { alert('No items to save yet.'); return; }
+  const now = new Date().toLocaleString();
+  const proj = activeProjectId || 'unknown';
+  const sep  = '='.repeat(80);
+  const div  = '-'.repeat(80);
+
+  const lines = [
+    'ARCHIVEIQ SESSION EXPORT',
+    `Generated: ${now}`,
+    `Project: ${proj}`,
+    `Items: ${allItems.length}`,
+    sep, '',
+  ];
+
+  allItems.forEach((item, i) => {
+    lines.push(`ITEM ${i + 1}: ${item.filename || 'untitled'}`);
+    lines.push(`Processed: ${item.processed_at || ''}`);
+    lines.push(`Type: ${item.source_type || item.item_type || ''}`);
+    lines.push(`Confidence: ${item.confidence_score || ''}`);
+    if (item.source_year || item.date_on_item) lines.push(`Year/Date: ${item.source_year || item.date_on_item}`);
+    if (item.source_label) lines.push(`Label: ${item.source_label}`);
+    if (item.notes) lines.push(`Notes: ${item.notes}`);
+    lines.push('');
+
+    const transcription = item.full_transcription || item.raw_text || '';
+    if (transcription) {
+      lines.push('TRANSCRIPTION:');
+      lines.push(transcription.trim());
+      lines.push('');
+    }
+
+    const people = (item.people_extracted || item.people_mentioned || []).join(', ');
+    const places = (item.places_extracted || item.places_mentioned || []).join(', ');
+    const dates  = (item.dates_extracted || []).join(', ');
+    if (people) lines.push(`People: ${people}`);
+    if (places) lines.push(`Places: ${places}`);
+    if (dates)  lines.push(`Dates: ${dates}`);
+
+    const rows = item.register_rows || [];
+    if (rows.length) {
+      lines.push('');
+      lines.push('REGISTER ROWS:');
+      lines.push('Date | Person | Category | Fact | Source');
+      rows.forEach(r => {
+        lines.push(`${r.date || ''} | ${r.person || ''} | ${r.category || ''} | ${r.fact || ''} | ${r.source || ''}`);
+      });
+    }
+
+    lines.push(''); lines.push(div); lines.push('');
+  });
+
+  const dateStr = new Date().toISOString().slice(0, 10);
+  triggerDownload(`archiveiq-session-${dateStr}.txt`, lines.join('\n'), 'text/plain');
+}
+
+function saveSessionAsJSON() {
+  if (!allItems.length) { alert('No items to save yet.'); return; }
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const payload = { exported_at: new Date().toISOString(), project: activeProjectId, item_count: allItems.length, items: allItems };
+  triggerDownload(`archiveiq-session-${dateStr}.json`, JSON.stringify(payload, null, 2), 'application/json');
+}
 
 // ── Preview Panel ───────────────────────────────────────────────────────
 
