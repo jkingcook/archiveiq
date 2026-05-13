@@ -211,8 +211,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#C9A84C;box-sh
   <h2 style="margin-bottom:16px">Setup — <span id="setup-project-name" style="color:#C9A84C">No Active Project</span></h2>
   <div id="no-active-warn" class="alert alert-warn" style="display:none">No active project selected. Go to Projects tab and set one active.</div>
 
-  <!-- 2A: Protocol -->
-  <div class="card">
+  <!-- 2A: Protocol — hidden from UI, preserved for server use -->
+  <div class="card" style="display:none">
     <div class="card-title">2A. Processing Protocol</div>
     <div class="form-group" style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px">
       <div style="flex:1">
@@ -234,8 +234,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#C9A84C;box-sh
     </div>
   </div>
 
-  <!-- 2B: Item Schema -->
-  <div class="card">
+  <!-- 2B: Item Schema — hidden from UI, preserved for server use -->
+  <div class="card" style="display:none">
     <div class="card-title">2B. Item Schema (Layer 1)</div>
     <label>JSON Schema — each processed item will use this structure</label>
     <textarea id="item-schema-text" rows="16" placeholder="JSON schema..."></textarea>
@@ -245,8 +245,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#C9A84C;box-sh
     </div>
   </div>
 
-  <!-- 2C: Analysis Schema -->
-  <div class="card">
+  <!-- 2C: Analysis Schema — hidden from UI, preserved for server use -->
+  <div class="card" style="display:none">
     <div class="card-title">2C. Analysis Schema (Layer 2)</div>
     <label>JSON Schema — group analysis output structure</label>
     <textarea id="analysis-schema-text" rows="14" placeholder="JSON schema..."></textarea>
@@ -311,6 +311,17 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#C9A84C;box-sh
       <button class="btn btn-secondary btn-sm" onclick="saveSessionAsText()" title="Save all items as a plain text file — ideal for dragging into Claude">💾 Save as Text (for Claude)</button>
       <button class="btn btn-secondary btn-sm" onclick="saveSessionAsJSON()" title="Save all items as JSON">📥 Save as JSON</button>
     </div>
+  </div>
+
+  <!-- Draggable Claude block — shown after Copy for Claude is clicked -->
+  <div id="claude-drag-block" style="display:none" class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-family:Georgia,serif;font-size:0.95rem;color:#3D2B1F;font-weight:600">📋 Ready to paste into Claude</div>
+      <button class="btn btn-secondary btn-sm" onclick="el('claude-drag-block').style.display='none'">✕ Close</button>
+    </div>
+    <p style="font-size:0.8rem;color:#6B4E35;margin-bottom:10px">Select all the text below (Ctrl+A or Cmd+A while clicking inside), then drag or paste it into Claude.ai</p>
+    <textarea id="claude-drag-text" rows="16" readonly onclick="this.select()" style="width:100%;font-family:monospace;font-size:0.78rem;background:#FAF7F0;border:1px solid #C9A84C;border-radius:6px;padding:12px;resize:vertical;cursor:text;color:#3D2B1F"></textarea>
+    <div style="margin-top:8px;font-size:0.75rem;color:#9B7B5B">Tip: Click inside the box then press Ctrl+A to select all, then Ctrl+C to copy, or drag the selected text directly into Claude.ai</div>
   </div>
 
   <!-- Item Preview Panel -->
@@ -1038,6 +1049,7 @@ function renderItemsTable(items) {
       <td><span class="status-badge ${status==='done'?'status-done':status==='needs_review'?'status-review':'status-queued'}">${status}</span></td>
       <td style="white-space:nowrap">
         <button class="btn btn-secondary btn-sm" onclick="previewItem('${item.item_id}')">🔍 Preview</button>
+        <button class="btn btn-secondary btn-sm" onclick="copyForClaude('${item.item_id}')" title="Copy transcription to clipboard and show draggable text block">📋 Copy for Claude</button>
         ${item.docx_path ? `<button class="btn btn-secondary btn-sm" onclick="downloadItem('${item.item_id}')">⬇</button>` : ''}
         ${needsReview ? `<button class="btn btn-sm" style="background:#FFF3CD;color:#856404;border:1px solid #FFEEBA" onclick="retryItem('${item.item_id}')">🔄</button>` : ''}
       </td>
@@ -1047,6 +1059,68 @@ function renderItemsTable(items) {
 
 function downloadItem(id) { window.open(BASE + '/export/item/' + id); }
 function downloadZip(type) { window.open(BASE + '/export/zip/' + type); }
+
+function showToast(msg, color) {
+  let t = document.getElementById('aiq-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'aiq-toast';
+    t.style.cssText = 'position:fixed;bottom:28px;right:28px;padding:12px 22px;border-radius:8px;font-size:0.88rem;font-weight:600;color:#fff;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.background = color || '#2D7A3A';
+  t.style.opacity = '1';
+  clearTimeout(t._hide);
+  t._hide = setTimeout(() => { t.style.opacity = '0'; }, 2800);
+}
+
+function copyForClaude(itemId) {
+  const item = allItems.find(i => i.item_id === itemId);
+  if (!item) return;
+
+  const lines = [];
+  lines.push(`ARCHIVEIQ DOCUMENT — ${item.filename || 'untitled'}`);
+  lines.push(`Type: ${item.source_type || item.item_type || ''}  |  Confidence: ${item.confidence_score || ''}  |  Date: ${item.source_year || item.date_on_item || ''}`);
+  lines.push('');
+
+  const transcription = (item.full_transcription || item.raw_text || '').trim();
+  if (transcription) {
+    lines.push('TRANSCRIPTION:');
+    lines.push(transcription);
+    lines.push('');
+  }
+
+  const people = (item.people_extracted || item.people_mentioned || []).join(', ');
+  const places = (item.places_extracted || item.places_mentioned || []).join(', ');
+  const dates  = (item.dates_extracted || []).join(', ');
+  if (people) lines.push(`People: ${people}`);
+  if (places) lines.push(`Places: ${places}`);
+  if (dates)  lines.push(`Dates: ${dates}`);
+
+  const rows = item.register_rows || [];
+  if (rows.length) {
+    lines.push('');
+    lines.push('REGISTER ROWS:');
+    rows.forEach(r => lines.push(`${r.date || ''} | ${r.person || ''} | ${r.category || ''} | ${r.fact || ''} | ${r.source || ''}`));
+  }
+
+  const text = lines.join('\n');
+
+  // Copy to clipboard
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('✓ Copied — paste into Claude', '#2D7A3A');
+  }).catch(() => {
+    showToast('Text ready below — select and copy', '#9B7B5B');
+  });
+
+  // Show draggable block
+  el('claude-drag-text').value = text;
+  const block = el('claude-drag-block');
+  block.style.display = '';
+  block.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setTimeout(() => el('claude-drag-text').select(), 400);
+}
 
 function triggerDownload(filename, content, mimeType) {
   const blob = new Blob([content], { type: mimeType });
