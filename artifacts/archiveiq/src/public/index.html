@@ -295,6 +295,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:#C9A84C;box-sh
     <div id="proc-progress-wrap" class="progress-wrap" style="display:none">
       <div id="proc-progress-bar" class="progress-bar" style="width:0%"></div>
     </div>
+    <div id="proc-error-banner" style="display:none;margin-top:10px;padding:12px 16px;background:#FFF3CD;border:1px solid #FFEEBA;border-radius:6px;font-size:0.84rem;color:#856404;line-height:1.5"></div>
   </div>
 
   <!-- Results Table -->
@@ -930,17 +931,27 @@ function renderThumbs() {
 
 function clearFiles() { uploadedFiles = []; el('thumb-grid').innerHTML = ''; el('process-all-btn').disabled = true; }
 
+function showProcError(msg) {
+  const b = el('proc-error-banner');
+  if (!msg) { b.style.display = 'none'; b.innerHTML = ''; return; }
+  b.style.display = '';
+  b.innerHTML = '<strong>⚠ Processing issue:</strong> ' + msg;
+  b.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
 async function processAll() {
   if (!activeProjectId) { alert('No active project selected'); return; }
   if (uploadedFiles.length === 0) { alert('No files uploaded'); return; }
   if (isProcessing) return;
   isProcessing = true;
 
+  showProcError(null);
   const btn = el('process-all-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Processing...';
   el('proc-progress-wrap').style.display = '';
 
+  const fileErrors = [];
   let processed = 0;
   for (let i = 0; i < uploadedFiles.length; i++) {
     const file = uploadedFiles[i];
@@ -948,6 +959,11 @@ async function processAll() {
     if (thumbStatus) { thumbStatus.className = 'status-badge status-processing'; thumbStatus.textContent = 'Processing'; }
     el('proc-status-text').textContent = `Processing ${i+1} of ${uploadedFiles.length} — ${file.name}`;
     el('proc-progress-bar').style.width = Math.round((i / uploadedFiles.length) * 100) + '%';
+
+    // Warn after 90s that a large file is still processing (not an error, just feedback)
+    const slowTimer = setTimeout(() => {
+      el('proc-status-text').textContent = `${file.name} — still working (large file)…`;
+    }, 90000);
 
     try {
       const formData = new FormData();
@@ -958,12 +974,20 @@ async function processAll() {
       formData.append('notes', el('proc-notes').value);
 
       const res = await fetch(BASE + '/process', { method: 'POST', body: formData });
-      if (!res.body) throw new Error('No response body');
+
+      // Surface HTTP-level errors immediately
+      if (!res.ok) {
+        let body = '';
+        try { body = await res.text(); } catch(_) {}
+        throw new Error(`Server returned ${res.status}: ${body.slice(0, 200)}`);
+      }
+      if (!res.body) throw new Error('No response body from server');
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let sseBuf = '';
       let fileItems = [];
+      let serverError = null;
 
       while (true) {
         const { done: streamDone, value } = await reader.read();
@@ -980,15 +1004,20 @@ async function processAll() {
                 thumbStatus.className = 'status-badge status-processing';
                 thumbStatus.textContent = `Pg ${evt.page}/${evt.totalPages}`;
               }
-              el('proc-status-text').textContent = `${file.name} — chunk ${evt.chunk}/${evt.totalChunks}`;
+              el('proc-status-text').textContent = `${file.name} — page ${evt.page}/${evt.totalPages}`;
             } else if (evt.type === 'error') {
-              console.warn('[archiveiq]', evt.error);
+              serverError = evt.error || 'Unknown server error';
+              console.warn('[archiveiq] server error event:', serverError);
               if (thumbStatus) { thumbStatus.className = 'status-badge status-review'; thumbStatus.textContent = 'Review'; }
             } else if (evt.type === 'done') {
               fileItems = evt.items || [];
             }
-          } catch(_) { /* skip malformed event */ }
+          } catch(_) { /* skip malformed SSE line */ }
         }
+      }
+
+      if (serverError) {
+        fileErrors.push(`${file.name}: ${serverError}`);
       }
 
       const item = fileItems[0];
@@ -1000,8 +1029,12 @@ async function processAll() {
       fileItems.forEach(it => { if (!allItems.find(e => e.item_id === it.item_id)) allItems.push(it); });
       processed++;
     } catch(e) {
-      console.error('[archiveiq] fetch error:', file.name, e);
-      if (thumbStatus) { thumbStatus.className = 'status-badge status-review'; thumbStatus.textContent = 'Review'; }
+      const errMsg = e instanceof Error ? e.message : String(e);
+      console.error('[archiveiq] fetch error:', file.name, errMsg);
+      fileErrors.push(`${file.name}: ${errMsg}`);
+      if (thumbStatus) { thumbStatus.className = 'status-badge status-review'; thumbStatus.textContent = 'Error'; }
+    } finally {
+      clearTimeout(slowTimer);
     }
     el('proc-progress-bar').style.width = Math.round(((i+1) / uploadedFiles.length) * 100) + '%';
   }
@@ -1010,6 +1043,10 @@ async function processAll() {
   btn.disabled = false;
   btn.textContent = '⚡ Process All';
   el('proc-status-text').textContent = `Done — ${processed} of ${uploadedFiles.length} processed`;
+
+  if (fileErrors.length > 0) {
+    showProcError(fileErrors.join('<br>'));
+  }
 
   // Always reload items from server — this is the authoritative source
   // and handles cases where the SSE stream ended before the 'done' event arrived

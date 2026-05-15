@@ -18,7 +18,7 @@ mkdirSync("/tmp/output/analysis", { recursive: true });
 
 const _require = createRequire(import.meta.url);
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }); // 100MB per file
 const client = new Anthropic({ apiKey: process.env["ANTHROPIC_API_KEY"] });
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
