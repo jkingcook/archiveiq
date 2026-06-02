@@ -180,7 +180,6 @@ async function callClaudeOnPdfNative(
   const pdfDoc = await PDFDocument.load(buffer, { ignoreEncryption: true });
   const pageCount = pdfDoc.getPageCount();
 
-  console.log('Pages found:', pageCount);
   logger.info({ filename, pageCount }, "[pdf-native] loaded PDF, splitting into per-page documents");
 
   if (pageCount === 0) throw new Error("PDF has no pages");
@@ -268,15 +267,11 @@ async function callClaude(
     const alphaRatio = text.length > 0 ? alphaCount / text.length : 0;
     const isRealText = text.length >= 200 && alphaRatio >= 0.3;
 
-    console.log('PDF text length:', text.length);
-    console.log('Alpha ratio:', alphaRatio.toFixed(3), '— isRealText:', isRealText);
-
     if (isRealText) {
       logger.info({ filename, textLen: text.length, alphaRatio }, "[pdf] text-based PDF — sending as text");
       return callClaudeOnText(text, filename);
     }
 
-    console.log('Attempting pdf-lib native PDF split...');
     logger.info({ filename, textLen: text.length, alphaRatio }, "[pdf] scanned/garbage PDF — falling back to pdf-lib native");
     return callClaudeOnPdfNative(buffer, filename, onProgress);
   }
@@ -353,11 +348,18 @@ router.post("/", upload.array("files"), async (req: Request, res: Response) => {
       const parsed = await callClaude(file.buffer, file.originalname, onProgress);
 
       const itemId = uuidv4();
+      const fileExt = (file.originalname.split(".").pop() ?? "").toLowerCase();
+      const fileMode = ["jpg","jpeg","png","gif","webp"].includes(fileExt) ? "image"
+        : fileExt === "pdf" ? "pdf"
+        : ["docx","doc"].includes(fileExt) ? "docx"
+        : "text";
+
       const item: Record<string, unknown> = {
         ...parsed,
         item_id: itemId,
         project_id: projectId,
         filename: file.originalname,
+        file_mode: fileMode,
         source_year: sourceYear || "",
         source_label: sourceLabel || "",
         notes: notes || "",

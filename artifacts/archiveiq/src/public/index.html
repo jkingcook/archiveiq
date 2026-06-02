@@ -656,6 +656,7 @@ const BASE = '/archiveiq/api';
 let activeProjectId = null;
 let allItems = [];
 let allAnalysis = [];
+let allExportItems = [];
 let uploadedFiles = [];
 let isProcessing = false;
 
@@ -1268,16 +1269,15 @@ function previewItem(itemId) {
   el('pv-download-btn').style.display = item.docx_path ? '' : 'none';
 
   // Stats strip
-  const rawText = item.raw_text || '';
+  const rawText = item.full_transcription || item.raw_text || '';
   const words = rawText.trim() ? rawText.trim().split(/\s+/).length : 0;
   const chars = rawText.length;
   const rows = item.register_rows?.length ?? 0;
-  const chunks = item.chunk_count || 1;
   const conf = item.confidence_score || '';
   el('pv-stat-words').textContent = chars > 0 ? `${chars.toLocaleString()} chars · ${words.toLocaleString()} words` : '';
   el('pv-stat-rows').textContent = `${rows} register row${rows !== 1 ? 's' : ''}`;
-  el('pv-stat-chunks').textContent = chunks > 1 ? `${chunks} chunks processed` : '';
-  el('pv-stat-mode').textContent = item.file_mode ? `Mode: ${item.file_mode}` : '';
+  el('pv-stat-chunks').textContent = item.file_mode ? `Mode: ${item.file_mode}` : '';
+  el('pv-stat-mode').textContent = '';
   el('pv-stat-conf').textContent = conf ? `Confidence: ${conf}` : '';
 
   // Register rows table
@@ -1581,17 +1581,15 @@ async function askArchiveIQ() {
 // ── TAB 6: EXPORT ──────────────────────────────────────────────────────
 async function loadExport() {
   try {
-    // Load all items
     const itemData = await api('/items');
-    const items = itemData.items || [];
+    allExportItems = itemData.items || [];
     const projData = await api('/projects');
     const projects = projData.projects || [];
 
-    // Populate project filter
     const projFilter = el('export-filter-proj');
     projFilter.innerHTML = '<option value="">All Projects</option>' + projects.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
 
-    renderExportItems(items);
+    renderExportItems(allExportItems);
     renderAnalysisTable(allAnalysis.length ? allAnalysis : (await api('/analysis')).analysis || []);
     renderMasterReports(projects);
   } catch(e) {}
@@ -1617,7 +1615,25 @@ function renderExportItems(items) {
 }
 
 function filterExportItems() {
-  // Simple client-side filter — could call search API too
+  const search = (el('export-search')?.value || '').toLowerCase().trim();
+  const projFilter = el('export-filter-proj')?.value || '';
+  const confFilter = el('export-filter-conf')?.value || '';
+
+  const filtered = allExportItems.filter(item => {
+    if (projFilter && item.project_id !== projFilter) return false;
+    if (confFilter && item.confidence_score !== confFilter) return false;
+    if (search) {
+      const fname = (item.filename || '').toLowerCase();
+      const type = (item.source_type || item.item_type || '').toLowerCase();
+      const year = (item.source_year || item.date_on_item || '').toLowerCase();
+      const transcription = (item.full_transcription || item.raw_text || '').toLowerCase();
+      const people = (item.people_extracted || item.people_mentioned || []).join(' ').toLowerCase();
+      if (!fname.includes(search) && !type.includes(search) && !year.includes(search) &&
+          !transcription.includes(search) && !people.includes(search)) return false;
+    }
+    return true;
+  });
+  renderExportItems(filtered);
 }
 
 function renderAnalysisTable(analyses) {
